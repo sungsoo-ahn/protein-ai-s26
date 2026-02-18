@@ -47,7 +47,7 @@ Along the way we examine simplified PyTorch implementations of each piece, so th
 ### 1.1 Anfinsen's Thermodynamic Hypothesis
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/wikimedia/protein_structure_levels.png' | relative_url }}" alt="Four levels of protein structure">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/wikimedia/protein_structure_levels.png' | relative_url }}" alt="Four levels of protein structure">
     <div class="caption mt-1"><strong>The four levels of protein structure.</strong> Primary structure is the amino acid sequence. Secondary structure consists of local folding patterns (alpha helices and beta sheets). Tertiary structure is the complete 3D fold of a single chain. Quaternary structure describes the assembly of multiple chains. Source: Wikimedia Commons, CC BY-SA 4.0.</div>
 </div>
 
@@ -86,7 +86,7 @@ Then AlphaFold2 appeared at CASP14 in 2020 and scored a median GDT-TS above 90, 
 A problem that had resisted half a century of effort appeared to yield almost overnight to deep learning.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/casp_progress.png' | relative_url }}" alt="CASP progress chart showing AlphaFold2 breakthrough">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/casp_progress.png' | relative_url }}" alt="CASP progress chart showing AlphaFold2 breakthrough">
     <div class="caption mt-1"><strong>CASP competition progress.</strong> Median GDT-TS scores for the best-performing group in each CASP edition. For 25 years, progress was incremental (blue bars). AlphaFold2 at CASP14 (red bar) crossed the experimental accuracy threshold, effectively solving the structure prediction problem.</div>
 </div>
 
@@ -118,7 +118,7 @@ AlphaFold2 makes evolutionary information the central organizing principle of it
 The following diagram shows the overall architecture of AlphaFold2, from input sequences to 3D structure output.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-07-alphafold_diagram_0.png' | relative_url }}" alt="AlphaFold2 pipeline overview: protein sequence is embedded into MSA and pair representations, refined by 48 Evoformer blocks, then decoded by the structure module into 3D coordinates with confidence scores">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-07-alphafold_diagram_0.png' | relative_url }}" alt="AlphaFold2 pipeline overview: protein sequence is embedded into MSA and pair representations, refined by 48 Evoformer blocks, then decoded by the structure module into 3D coordinates with confidence scores">
 </div>
 
 ### 2.3 Two Representations, One Structure
@@ -242,7 +242,7 @@ The Evoformer is the heart of AlphaFold2.
 It is a stack of 48 nearly identical blocks, each of which refines both the MSA representation and the pair representation.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-07-alphafold_diagram_1.png' | relative_url }}" alt="Evoformer block data flow: MSA representation passes through row attention with pair bias, column attention, and transition, while pair representation passes through triangular updates, triangular attention, and pair transition">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-07-alphafold_diagram_1.png' | relative_url }}" alt="Evoformer block data flow: MSA representation passes through row attention with pair bias, column attention, and transition, while pair representation passes through triangular updates, triangular attention, and pair transition">
 </div>
 The name telegraphs its purpose: a transformer designed to process *evolutionary* information.
 
@@ -363,12 +363,12 @@ But proteins are densely packed, and real constraints are far tighter than the w
 The **triangular updates** pass messages around triangles in the pair representation, enforcing this kind of three-body consistency.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/illustratedaf_triangle_paths.png' | relative_url }}" alt="Triangle paths in the pair representation: residue triplets (i,j,k) enforce geometric consistency">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/illustratedaf_triangle_paths.png' | relative_url }}" alt="Triangle paths in the pair representation: residue triplets (i,j,k) enforce geometric consistency">
     <div class="caption mt-1"><strong>Triangle paths.</strong> The pair representation can be viewed as a directed graph where each edge encodes the relationship between two residues. For any triplet \((i, j, k)\), the edges \((i,j)\), \((j,k)\), and \((i,k)\) form a triangle. Triangular updates propagate information along these paths, enforcing geometric consistency. Source: Simon & Silberg, <em>The Illustrated AlphaFold</em> (2024).</div>
 </div>
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-07-alphafold_diagram_2.png' | relative_url }}" alt="Triangular multiplicative update: for each residue pair i-j, information from all intermediate residues k is gated and aggregated to enforce geometric consistency">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-07-alphafold_diagram_2.png' | relative_url }}" alt="Triangular multiplicative update: for each residue pair i-j, information from all intermediate residues k is gated and aggregated to enforce geometric consistency">
 </div>
 There are four triangular operations in each Evoformer block---two multiplicative updates and two attention variants---each providing a different view of the geometric constraints.
 
@@ -382,7 +382,7 @@ Here $$a_{ik}$$ and $$b_{jk}$$ are gated linear projections of the pair represen
 The sum over $$k$$ accumulates evidence from every possible third vertex.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/illustratedaf_triangle_outgoing.png' | relative_url }}" alt="Triangular update for outgoing edges: row-wise weighted updates using the third element in triangle paths">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/illustratedaf_triangle_outgoing.png' | relative_url }}" alt="Triangular update for outgoing edges: row-wise weighted updates using the third element in triangle paths">
     <div class="caption mt-1"><strong>Triangular multiplicative update (outgoing).</strong> For each pair \((i,j)\), the update aggregates information from all pairs \((i,k)\) and \((j,k)\) sharing a third node \(k\). Gated projections are element-wise multiplied and summed over \(k\). Source: Simon & Silberg, <em>The Illustrated AlphaFold</em> (2024).</div>
 </div>
 
@@ -396,7 +396,7 @@ The outgoing variant asks "which residues do $$i$$ and $$j$$ *both point to*?"
 The incoming variant asks "which residues *both point to* $$i$$ and $$j$$?"
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/illustratedaf_triangle_incoming.png' | relative_url }}" alt="Triangular update for incoming edges: column-wise weighted updates (transposed version of outgoing)">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/illustratedaf_triangle_incoming.png' | relative_url }}" alt="Triangular update for incoming edges: column-wise weighted updates (transposed version of outgoing)">
     <div class="caption mt-1"><strong>Triangular multiplicative update (incoming).</strong> The transposed variant: the summation runs over \(k\) with edges \((k,i)\) and \((k,j)\), providing a complementary view of the geometric constraints. Source: Simon & Silberg, <em>The Illustrated AlphaFold</em> (2024).</div>
 </div>
 
@@ -547,7 +547,7 @@ where $$m_{si}$$ is the MSA feature vector for sequence $$s$$ at position $$i$$,
 For each pair $$(i, j)$$, we compute the outer product of the projected MSA features at positions $$i$$ and $$j$$, then average over all sequences.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/illustratedaf_outer_product_mean.png' | relative_url }}" alt="Outer product mean: computing pairwise evolutionary correlations from MSA columns">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/illustratedaf_outer_product_mean.png' | relative_url }}" alt="Outer product mean: computing pairwise evolutionary correlations from MSA columns">
     <div class="caption mt-1"><strong>Outer product mean.</strong> For each pair of positions \((i, j)\), the MSA features at those positions are projected, their outer products are computed across all sequences, and the results are averaged. This captures co-evolutionary correlations: positions that covary across the MSA are likely in structural contact. Source: Simon & Silberg, <em>The Illustrated AlphaFold</em> (2024).</div>
 </div>
 
@@ -723,7 +723,7 @@ class Rigid:
 ### 5.3 Invariant Point Attention (IPA)
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-07-alphafold_diagram_3.png' | relative_url }}" alt="Invariant Point Attention: scalar queries and keys from per-residue features combine with point queries and keys in local frames and pair bias to compute SE(3)-invariant attention scores">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-07-alphafold_diagram_3.png' | relative_url }}" alt="Invariant Point Attention: scalar queries and keys from per-residue features combine with point queries and keys in local frames and pair bias to compute SE(3)-invariant attention scores">
 </div>
 
 Invariant Point Attention is the mechanism that lets the network reason about three-dimensional geometry while remaining invariant to global rotations and translations.

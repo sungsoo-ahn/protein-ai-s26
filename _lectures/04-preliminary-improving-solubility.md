@@ -253,7 +253,7 @@ An AUC of 1.0 means perfect separation; 0.5 means the model is no better than ra
 After training for 50 epochs, examine the loss curves.
 
 <div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/overfitting_curves.png' | relative_url }}" alt="Training vs validation loss showing overfitting">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/overfitting_curves.png' | relative_url }}" alt="Training vs validation loss showing overfitting">
     <div class="caption mt-1"><strong>Training and validation loss curves.</strong> Training loss decreases steadily, but validation loss begins increasing after ~40 epochs --- the model is memorizing the training data rather than learning generalizable patterns.</div>
 </div>
 

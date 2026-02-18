@@ -164,7 +164,7 @@ The latent vectors the decoder sees during training then overlap with the distri
 The entire latent space becomes populated: sampling $$z \sim \mathcal{N}(0, I)$$ and decoding it produces a valid protein, because the decoder has been trained on noise drawn from exactly this region.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/VAEArch.png' | relative_url }}" alt="VAE architecture">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/VAEArch.png' | relative_url }}" alt="VAE architecture">
     <div class="caption mt-1"><strong>Variational autoencoder architecture.</strong> The encoder \(\mathbf{g}[\mathbf{x}, \boldsymbol{\theta}]\) maps input data \(\mathbf{x}\) to the mean \(\boldsymbol{\mu}\) and covariance \(\boldsymbol{\Sigma}\) of a variational distribution \(q(\mathbf{z}|\mathbf{x}, \boldsymbol{\theta})\). A latent code \(\mathbf{z}^*\) is sampled from this distribution and passed to the decoder \(\mathbf{f}[\mathbf{z}^*, \boldsymbol{\phi}]\), which outputs the reconstruction probability \(Pr(\mathbf{x}|\mathbf{z}^*, \boldsymbol{\phi})\). The ELBO loss (top) combines two terms: the reconstruction log-probability \(\log Pr(\mathbf{x}|\mathbf{z}^*, \boldsymbol{\phi})\) (data should have high probability) and the KL divergence \(D_{KL}[q(\mathbf{z}|\mathbf{x}, \boldsymbol{\theta}) \| Pr(\mathbf{z})]\) (variational distribution should be close to the prior). <em>Note: this figure uses \(\boldsymbol{\theta}\) for the encoder and \(\boldsymbol{\phi}\) for the decoder; our text uses the opposite convention (\(\phi\) for encoder, \(\theta\) for decoder).</em> Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
@@ -230,7 +230,7 @@ $$\log p_\theta(x) \geq \text{ELBO}$$
 Maximizing the ELBO pushes up on the true log-likelihood from below.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/VAEELBO.png' | relative_url }}" alt="The evidence lower bound (ELBO)">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/VAEELBO.png' | relative_url }}" alt="The evidence lower bound (ELBO)">
     <div class="caption mt-1"><strong>The evidence lower bound (ELBO).</strong> The dark curve is the log marginal likelihood \(\log Pr(\mathbf{x}|\boldsymbol{\phi})\); the light curve is the ELBO, which is always below it. (a) Fixing the decoder parameters at \(\boldsymbol{\phi}^{[0]}\) and optimizing the encoder from \(\boldsymbol{\theta}^{[0]}\) to \(\boldsymbol{\theta}^{[1]}\) raises the ELBO (tightens the bound). (b) Then optimizing the decoder from \(\boldsymbol{\phi}^{[0]}\) to \(\boldsymbol{\phi}^{[1]}\) raises both the ELBO and the true log-likelihood. Training alternates between these two steps. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
@@ -293,7 +293,7 @@ Think of it this way: rather than asking "what is the gradient of a coin flip?",
 The latter is elementary calculus.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/VAEReparam.png' | relative_url }}" alt="The reparameterization trick">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/VAEReparam.png' | relative_url }}" alt="The reparameterization trick">
     <div class="caption mt-1"><strong>The reparameterization trick.</strong> Instead of sampling \(\mathbf{z}^*\) directly from \(q(\mathbf{z}|\mathbf{x}, \boldsymbol{\theta})\) (which blocks gradient flow), we sample noise \(\boldsymbol{\epsilon}^* \sim \text{Norm}_{\epsilon}[\mathbf{0}, \mathbf{I}]\) and compute \(\mathbf{z}^* = \boldsymbol{\mu} + \boldsymbol{\Sigma}^{1/2} \boldsymbol{\epsilon}^*\). The randomness is now in \(\boldsymbol{\epsilon}^*\), while the dependence on the encoder outputs \(\boldsymbol{\mu}\) and \(\boldsymbol{\Sigma}\) is deterministic and differentiable. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
@@ -320,7 +320,7 @@ Diffusion models take an entirely different approach: they learn generation by l
 Sharpening a blurry photograph is far easier than painting a photorealistic image from a blank canvas.  Diffusion models exploit this asymmetry: instead of generating from scratch, they decompose generation into many small denoising steps.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/diffusion_image_noising.png' | relative_url }}" alt="An image progressively corrupted by Gaussian noise (forward process) and recovered by denoising (reverse process)">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_image_noising.png' | relative_url }}" alt="An image progressively corrupted by Gaussian noise (forward process) and recovered by denoising (reverse process)">
     <div class="caption mt-1"><strong>Diffusion on an image.</strong> The forward process \(q\) progressively adds Gaussian noise until the image becomes indistinguishable from random noise.  The reverse process \(p_\theta\) learns to undo each step, recovering the clean image from pure noise.</div>
 </div>
 
@@ -330,7 +330,7 @@ Repeat the corruption many times until the coordinates become indistinguishable 
 If the network can reverse *each individual step*, chaining all the reverse steps together recovers a clean structure from pure noise.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/diffusion_pointcloud_noising.png' | relative_url }}" alt="A 2D point cloud progressively corrupted by Gaussian noise and recovered by denoising">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_pointcloud_noising.png' | relative_url }}" alt="A 2D point cloud progressively corrupted by Gaussian noise and recovered by denoising">
     <div class="caption mt-1"><strong>Diffusion on a point cloud.</strong> Structured coordinates (left) are progressively corrupted until they resemble a random Gaussian scatter (right).  The reverse process learns to recover the original structure step by step.  For proteins, the points represent residue positions in 3D space.</div>
 </div>
 
@@ -346,12 +346,12 @@ The collection $$\{\beta_1, \beta_2, \ldots, \beta_T\}$$ is called the **noise s
 It usually starts small (gentle corruption early on) and increases over time (aggressive corruption later).
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/DiffusionForward2.png' | relative_url }}" alt="Forward diffusion process">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/DiffusionForward2.png' | relative_url }}" alt="Forward diffusion process">
     <div class="caption mt-1"><strong>Forward diffusion process.</strong> (a) Three example trajectories: clean data \(x\) (top) is progressively corrupted through noisy versions \(z_{20}, z_{40}, \ldots, z_{100}\), converging to pure noise. (b) The conditional distributions \(q(z_1|x)\), \(q(z_{41}|z_{40})\), \(q(z_{81}|z_{80})\) at selected steps. Each step adds a small amount of Gaussian noise, so the conditional is a narrow Gaussian centered near the previous value. As diffusion progresses, the distributions widen and overlap, erasing information about the starting point. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
 <div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/diffusion_noise_schedule.png' | relative_url }}" alt="Diffusion noise schedule">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_noise_schedule.png' | relative_url }}" alt="Diffusion noise schedule">
     <div class="caption mt-1">A linear noise schedule over 1000 timesteps. β_t (noise variance per step) increases linearly. √ᾱ_t (signal coefficient) decays from 1 to near 0 — the clean signal is gradually destroyed. √(1−ᾱ_t) (noise coefficient) grows from 0 to 1 — by t=T, the data is pure noise.</div>
 </div>
 
@@ -418,7 +418,7 @@ $$p_\theta(x_{t-1} \mid x_t) = \mathcal{N}\!\bigl(x_{t-1};\; \mu_\theta(x_t, t),
 where $$\mu_\theta$$ is a neural network with parameters $$\theta$$ that predicts the denoised mean, and $$\sigma_t^2$$ is typically set to $$\beta_t$$ (or a related fixed quantity).
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/DiffusionReverse.png' | relative_url }}" alt="Reverse denoising process">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/DiffusionReverse.png' | relative_url }}" alt="Reverse denoising process">
     <div class="caption mt-1"><strong>Reverse denoising process.</strong> (a) The marginal distribution \(q(z_t)\) (heatmap) spreads out as \(t\) increases. Sampled points \(z_3^*, z_{10}^*, z_{20}^*\) are shown at selected timesteps. (b) At each step, the forward conditional \(q(z_{t+1}|z_t)\) (brown) and reverse conditional \(q(z_t|z_{t+1}^*)\) (teal) are both narrow Gaussians, while the marginal \(q(z_t)\) (gray) is broad. The reverse conditional is tractable because it depends on a single known value \(z_{t+1}^*\), making each denoising step a small, learnable correction. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
@@ -447,12 +447,12 @@ Ho et al. <sup id="cite-a"><a href="#ref-a">[a]</a></sup> showed that dropping t
 For the full derivation, see Luo (2022) [^elbo-derivation].
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/luo_hvae.png' | relative_url }}" alt="Hierarchical VAE graphical model with T latent layers forming a Markov chain">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/luo_hvae.png' | relative_url }}" alt="Hierarchical VAE graphical model with T latent layers forming a Markov chain">
     <div class="caption mt-1"><strong>Diffusion as a hierarchical VAE.</strong> A Markovian Hierarchical VAE with \(T\) latent layers. The generative (reverse) process \(p_\theta\) flows top-down along the chain; the inference (forward) process \(q\) flows bottom-up. A diffusion model is this structure with the forward process fixed to Gaussian noise addition and all latent layers sharing the data dimensionality. Source: Luo, <em>Understanding Diffusion Models: A Unified Perspective</em> (2022).</div>
 </div>
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/luo_elbo_denoising.png' | relative_url }}" alt="ELBO decomposition: each timestep matches the learned denoising step to a tractable ground-truth posterior">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/luo_elbo_denoising.png' | relative_url }}" alt="ELBO decomposition: each timestep matches the learned denoising step to a tractable ground-truth posterior">
     <div class="caption mt-1"><strong>Per-timestep ELBO decomposition.</strong> At each step, the learned reverse distribution \(p_\theta(x_{t-1}|x_t)\) (green) is trained to match the tractable ground-truth denoising posterior \(q(x_{t-1}|x_t, x_0)\) (pink). Because both are Gaussians with matched variance, the KL divergence between them reduces to an MSE between means --- which further simplifies to the noise-prediction loss. Source: Luo, <em>Understanding Diffusion Models: A Unified Perspective</em> (2022).</div>
 </div>
 
@@ -503,7 +503,7 @@ This connection links diffusion models to the broader framework of score-based g
 [^score]: The *score* of a distribution $$p(x)$$ is the gradient of its log-density, $$\nabla_x \log p(x)$$.  Score matching trains a network to approximate this gradient without knowing the normalizing constant of $$p$$.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/yangsong_score_contour.jpg' | relative_url }}" alt="Score function visualized as a vector field over a mixture of two Gaussians">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/yangsong_score_contour.jpg' | relative_url }}" alt="Score function visualized as a vector field over a mixture of two Gaussians">
     <div class="caption mt-1"><strong>The score function as a vector field.</strong> Contour plot of a mixture of two Gaussians, overlaid with the score \(\nabla_x \log p(x)\) at each point. Arrows point toward the modes (high-density regions). The denoising network implicitly estimates this vector field at each noise level. Source: Song, <em>Generative Modeling by Estimating Gradients of the Data Distribution</em> (2021).</div>
 </div>
 
@@ -514,7 +514,7 @@ This connection links diffusion models to the broader framework of score-based g
 ### Generation by Iterative Denoising
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-05-generative-models_diagram_1.png' | relative_url }}" alt="Diffusion reverse process: iterative denoising from pure noise to clean protein structure over T timesteps">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-05-generative-models_diagram_1.png' | relative_url }}" alt="Diffusion reverse process: iterative denoising from pure noise to clean protein structure over T timesteps">
 </div>
 
 Once the noise prediction network is trained, generation proceeds by simulating the reverse process.

@@ -60,7 +60,7 @@ In short: the transformer's input and output have the same shape $$(L, d)$$.
 What changes is the *meaning* of each vector --- raw amino-acid identity in, context-aware representation out.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-04-transformers-gnns_diagram_4.png' | relative_url }}" alt="Transformer pipeline: L integer tokens through embedding, attention, and N transformer blocks, preserving (L, d) shape throughout">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-04-transformers-gnns_diagram_4.png' | relative_url }}" alt="Transformer pipeline: L integer tokens through embedding, attention, and N transformer blocks, preserving (L, d) shape throughout">
     <div class="caption mt-1"><strong>Tensor shapes through attention.</strong> Green nodes show the data shape at each stage; yellow nodes show computation steps. The \((L, L)\) attention matrix left-multiplies the \((L, d)\) embedding, producing a context-aware \((L, d)\) output.</div>
 </div>
 
@@ -85,7 +85,7 @@ The attention matrix $$A \in \mathbb{R}^{L \times L}$$, with entries $$A_{ij} = 
 In the sentence "The bank by the river flooded," the word "bank" should attend strongly to "river" and "flooded" to resolve its meaning---not to "money" or "loan."  A different sentence with the same word would produce entirely different attention weights.  The same adaptivity matters for proteins: this is the key insight.  Attention is a **linear layer whose weight matrix is computed from the data**.  Fixed layers apply the same transformation to every input; attention builds a different transformation for each input, shaped by the pairwise relationships within it.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/jalammar_attention_visualization.png' | relative_url }}" alt="Attention visualization: the word 'it' attends most strongly to 'The' and 'Animal'">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/jalammar_attention_visualization.png' | relative_url }}" alt="Attention visualization: the word 'it' attends most strongly to 'The' and 'Animal'">
     <div class="caption mt-1"><strong>Attention in action.</strong> A trained encoder processes the sentence "The animal didn't cross the street because it was too tired." Colored lines show the attention weights from "it" --- the model correctly attends most strongly to "The Animal," resolving the coreference. Source: Alammar, <em>The Illustrated Transformer</em> (2018). CC BY-NC-SA 4.0.</div>
 </div>
 
@@ -94,7 +94,7 @@ In the sentence "The bank by the river flooded," the word "bank" should attend s
 The simple formula $$x_i^T x_j$$ uses the same representation for two distinct roles: "what position $$i$$ is looking for" and "what position $$j$$ has to offer."  Separating these roles with learned linear projections gives the model more flexibility.  This is the **query-key-value (Q/K/V) decomposition**[^qkv].
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-04-transformers-gnns_diagram_1.png' | relative_url }}" alt="Query-Key-Value attention: each residue computes query, key, and value vectors to determine pairwise attention weights">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-04-transformers-gnns_diagram_1.png' | relative_url }}" alt="Query-Key-Value attention: each residue computes query, key, and value vectors to determine pairwise attention weights">
     <div class="caption mt-1"><strong>The Q/K/V decomposition.</strong> Each input embedding \(x_i\) is projected into a query, key, and value. The query-key dot product determines attention weights; the weighted sum of values produces the context-aware output.</div>
 </div>
 
@@ -151,17 +151,17 @@ Here $$Q \in \mathbb{R}^{N \times d_k}$$, $$K \in \mathbb{R}^{N \times d_k}$$, a
 The following walkthrough traces a single query through all three stages with concrete numbers.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/jalammar_attention_score.png' | relative_url }}" alt="Step 1: dot-product scores between query and key vectors">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/jalammar_attention_score.png' | relative_url }}" alt="Step 1: dot-product scores between query and key vectors">
     <div class="caption mt-1"><strong>Step 1 — Dot-product scores.</strong> The query vector \(q_1\) is dotted with every key vector to produce raw attention scores.</div>
 </div>
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/jalammar_attention_softmax.png' | relative_url }}" alt="Step 2: scale by sqrt(d_k) and apply softmax to get attention weights">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/jalammar_attention_softmax.png' | relative_url }}" alt="Step 2: scale by sqrt(d_k) and apply softmax to get attention weights">
     <div class="caption mt-1"><strong>Step 2 — Scale and softmax.</strong> Scores are divided by \(\sqrt{d_k}\), then softmax converts them into a probability distribution over positions.</div>
 </div>
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/jalammar_attention_output.png' | relative_url }}" alt="Step 3: weighted sum of value vectors produces the attention output">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/jalammar_attention_output.png' | relative_url }}" alt="Step 3: weighted sum of value vectors produces the attention output">
     <div class="caption mt-1"><strong>Step 3 — Weighted sum of values.</strong> Each value vector is weighted by its attention score and summed to produce the context-aware output for position 1. Source: Alammar, <em>The Illustrated Transformer</em> (2018). CC BY-NC-SA 4.0.</div>
 </div>
 
@@ -233,7 +233,7 @@ $$
 $$
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/d2l/multi-head-attention.png' | relative_url }}" alt="Multi-head attention mechanism">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/d2l/multi-head-attention.png' | relative_url }}" alt="Multi-head attention mechanism">
     <div class="caption mt-1"><strong>Multi-head attention.</strong> Multiple attention heads run in parallel, each with independent query, key, and value projections. Their outputs are concatenated and projected back to the model dimension. Source: Zhang et al., <em>Dive into Deep Learning</em>, CC BY-SA 4.0.</div>
 </div>
 
@@ -302,7 +302,7 @@ class SelfAttention(nn.Module):
 ## 3. The Transformer Architecture
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-04-transformers-gnns_diagram_2.png' | relative_url }}" alt="Transformer block: self-attention followed by feed-forward network, with residual connections and layer normalization">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-04-transformers-gnns_diagram_2.png' | relative_url }}" alt="Transformer block: self-attention followed by feed-forward network, with residual connections and layer normalization">
     <div class="caption mt-1"><strong>One transformer block.</strong> Input \(x\) passes through layer normalization, multi-head self-attention, and a residual connection, then through a second layer normalization, a feed-forward network, and another residual connection, producing output \(x'\) with the same shape.</div>
 </div>
 
@@ -558,7 +558,7 @@ def protein_to_graph(coords, sequence, k=10, threshold=10.0):
 ## 5. The Message-Passing Framework
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-04-transformers-gnns_diagram_3.png' | relative_url }}" alt="GNN message passing: each node gathers messages from neighbors, aggregates them, and updates its representation">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-04-transformers-gnns_diagram_3.png' | relative_url }}" alt="GNN message passing: each node gathers messages from neighbors, aggregates them, and updates its representation">
     <div class="caption mt-1"><strong>One round of message passing for node \(i\).</strong> Each neighbor \(j\) sends a message \(m_{ij}\) computed by the message function \(\psi\) from the two node states and the edge feature.  All messages are combined by the aggregation function \(\oplus\) (e.g., sum or mean).  The update function \(\varphi\) then produces the new representation \(h_i^{(\ell+1)}\) from the current state and the aggregated message.</div>
 </div>
 
@@ -594,7 +594,7 @@ $$
 where $$\mathcal{N}(i)$$ includes node $$i$$ itself (self-loop).  The limitation: GCN treats all neighbors equally---it cannot learn that some matter more than others.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/GraphGCN.png' | relative_url }}" alt="Graph convolutional network layer">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/GraphGCN.png' | relative_url }}" alt="Graph convolutional network layer">
     <div class="caption mt-1"><strong>Graph convolution.</strong> Each node averages its own and its neighbors' features, applies a linear transformation, then a nonlinearity. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
@@ -609,7 +609,7 @@ $$
 The coefficients $$\alpha_{ij}$$ are computed by a small neural network (a learnable vector $$\mathbf{a} \in \mathbb{R}^{2d'}$$ applied to the concatenation of transformed node features), then normalized with softmax over the neighborhood.  Like the transformer, GAT supports multi-head attention---each head learns different interaction patterns.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/distill_gat_attention.png' | relative_url }}" alt="GAT attention: a node computes interaction scores with each neighbor, normalizes via softmax, and takes a weighted sum">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/distill_gat_attention.png' | relative_url }}" alt="GAT attention: a node computes interaction scores with each neighbor, normalizes via softmax, and takes a weighted sum">
     <div class="caption mt-1"><strong>Graph attention.</strong> For each edge, an interaction score is computed between the node and its neighbor, normalized with softmax, and used to weight the neighbor's embedding before aggregation. Source: Sanchez-Lengeling et al., <em>A Gentle Introduction to Graph Neural Networks</em>, Distill (2021). CC BY 4.0.</div>
 </div>
 
@@ -625,7 +625,7 @@ $$
 Here $$M_\theta$$ and $$U_\theta$$ are learned MLPs.  The key advantage for proteins is that $$M_\theta$$ can incorporate rich **edge features** $$e_{ij}$$---inter-residue distances, backbone angles, sequence separation---which GCN and GAT cannot naturally handle.  This makes MPNN the architecture of choice for structure-based protein design, as exemplified by **ProteinMPNN** (Dauparas et al., 2022).
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/distill_mpnn_arch.png' | relative_url }}" alt="MPNN architecture: messages are prepared from edge and node features, then passed to update node representations">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/distill_mpnn_arch.png' | relative_url }}" alt="MPNN architecture: messages are prepared from edge and node features, then passed to update node representations">
     <div class="caption mt-1"><strong>MPNN layer.</strong> A message is prepared from an edge and its two connected nodes, then aggregated at the target node. Edge features (distances, angles) enter directly into the message function --- the key advantage over GCN and GAT for structure-based tasks. Source: Sanchez-Lengeling et al., <em>A Gentle Introduction to Graph Neural Networks</em>, Distill (2021). CC BY 4.0.</div>
 </div>
 

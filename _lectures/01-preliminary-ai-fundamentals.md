@@ -83,7 +83,7 @@ Preliminary Note 2 introduces neural networks, which overcome this limitation by
 Every project follows the same arc.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-01-preliminary-ai-fundamentals_diagram_0.png' | relative_url }}" alt="The machine learning pipeline: data collection, cleaning, feature encoding, model training, evaluation, and deployment">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-01-preliminary-ai-fundamentals_diagram_0.png' | relative_url }}" alt="The machine learning pipeline: data collection, cleaning, feature encoding, model training, evaluation, and deployment">
 </div>
 
 You start with data --- proteins and their labels, mined from databases like UniProt[^uniprot] or high-throughput expression studies.
@@ -120,7 +120,7 @@ Text sequences become 3D tensors `(batch, seq_len, embed_dim)`.
 Protein sequences follow the same pattern: a batch of protein sequences lives in a 3D tensor of shape `(batch_size, sequence_length, features)`.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-01-tensor-dimensions.png' | relative_url }}" alt="Tensor dimensions from scalar to 3D tensor">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-01-tensor-dimensions.png' | relative_url }}" alt="Tensor dimensions from scalar to 3D tensor">
     <div class="caption mt-1">Tensor dimensions in a protein context. Each amino acid's one-hot encoding is a vector of length 20. Stacking \(L\) residues gives a matrix. Batching \(B\) proteins gives a 3D tensor.</div>
 </div>
 
@@ -244,7 +244,7 @@ $$
 $$
 
 <div class="col-sm-6 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/d2l/singleneuron.png' | relative_url }}" alt="Linear regression as a single neuron">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/d2l/singleneuron.png' | relative_url }}" alt="Linear regression as a single neuron">
     <div class="caption mt-1"><strong>Linear regression as a single neuron.</strong> Input features \(x_1, x_2, \ldots, x_d\) (our 10 physicochemical features) each connect to a single output \(o_1\) (our prediction \(\hat{y}\)) through learned weights. This is the simplest possible neural network — one neuron with no activation function. Preliminary Note 2 adds nonlinearities and stacking to build more powerful networks. Source: Zhang et al., <em>Dive into Deep Learning</em>, Fig 3.1.1 (CC BY-SA 4.0).</div>
 </div>
 
@@ -261,7 +261,7 @@ Here $$\mathbf{W} \in \mathbb{R}^{10 \times 1}$$ is the weight vector reshaped a
 The following diagram illustrates this flow:
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-01-preliminary-ai-fundamentals_diagram_1.png' | relative_url }}" alt="Linear regression data flow: feature matrix X times weight vector W plus bias produces predictions for all proteins at once">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-01-preliminary-ai-fundamentals_diagram_1.png' | relative_url }}" alt="Linear regression data flow: feature matrix X times weight vector W plus bias produces predictions for all proteins at once">
 </div>
 
 ```python
@@ -320,7 +320,7 @@ Preliminary Note 3 covers others suited to classification tasks.
 ### Learning from Mistakes: Gradients and Optimization
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/supervised_learning.png' | relative_url }}" alt="Gradient descent on a loss surface and the resulting model fits">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/supervised_learning.png' | relative_url }}" alt="Gradient descent on a loss surface and the resulting model fits">
     <div class="caption mt-1"><strong>Gradient descent in action.</strong> (a) The loss surface over two parameters: intercept \(\phi_0\) and slope \(\phi_1\) (corresponding to bias \(b\) and a single weight \(w\) in our notation). Darker regions have higher loss. Gradient descent starts at a random point (step 0, light dot) and follows the steepest-descent direction, reaching a good fit by step 4 (dark dot). (b) The corresponding model predictions (lines) at each step. Early steps (light lines) fit poorly; later steps (dark lines) converge toward the data (orange dots). Source: Prince, <em>Understanding Deep Learning</em>, Fig 2.4 (CC BY-NC-ND).</div>
 </div>
 

@@ -101,7 +101,7 @@ This matters when processing databases with millions of entries.
 ## 2. From Protein Features to Neural Networks
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/amino_acid_properties.png' | relative_url }}" alt="The 20 standard amino acids grouped by chemical properties">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/amino_acid_properties.png' | relative_url }}" alt="The 20 standard amino acids grouped by chemical properties">
     <div class="caption mt-1"><strong>The 20 standard amino acids.</strong> Amino acids are grouped by their side-chain chemistry: nonpolar/hydrophobic (red), polar uncharged (blue), positively charged (green), and negatively charged (orange). Bar heights show approximate molecular weights. These chemical differences determine how each amino acid contributes to protein folding and function.</div>
 </div>
 
@@ -247,18 +247,18 @@ A single neuron can only learn linear decision boundaries.
 This is sufficient for linearly separable problems but fails when the boundary between classes is curved or disconnected --- which is why we need multiple layers.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-02-preliminary-features-and-architectures_diagram_0.png' | relative_url }}" alt="Single neuron computation: input features are weighted, summed with bias, and passed through an activation function to produce a prediction">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-02-preliminary-features-and-architectures_diagram_0.png' | relative_url }}" alt="Single neuron computation: input features are weighted, summed with bias, and passed through an activation function to produce a prediction">
 </div>
 
 ### 2.5 Layers: Many Neurons in Parallel
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/shallow_net.png' | relative_url }}" alt="A shallow neural network with one hidden layer">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/shallow_net.png' | relative_url }}" alt="A shallow neural network with one hidden layer">
     <div class="caption mt-1"><strong>Anatomy of a shallow neural network.</strong> (a) Full notation: input \(x\) is multiplied by input-to-hidden weights \(\theta_{ij}\) (our \(\mathbf{W}\)) and offset by biases \(\theta_{i0}\) (our \(\mathbf{b}\)), passed through hidden units \(h_1, h_2, h_3\) with ReLU activations (cyan diagonal lines), then combined with hidden-to-output weights \(\phi_i\) to produce output \(y\). The circled 1's represent bias inputs. (b) Simplified diagram omitting weight labels. Source: Prince, <em>Understanding Deep Learning</em>, Fig 3.1 (CC BY-NC-ND).</div>
 </div>
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/d2l/mlp.png' | relative_url }}" alt="Multi-layer perceptron with one hidden layer">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/d2l/mlp.png' | relative_url }}" alt="Multi-layer perceptron with one hidden layer">
     <div class="caption mt-1"><strong>A fully connected network with one hidden layer.</strong> Four input features \(x_1, \ldots, x_4\) each connect to all five hidden units \(h_1, \ldots, h_5\) (every arrow is a learned weight). The hidden layer applies a nonlinear activation, then connects to three outputs \(o_1, o_2, o_3\). "Fully connected" means every unit in one layer connects to every unit in the next — this is the \(\mathbf{h} = \sigma(\mathbf{W}\mathbf{x} + \mathbf{b})\) from the text. Source: Zhang et al., <em>Dive into Deep Learning</em>, Fig 5.1.1 (CC BY-SA 4.0).</div>
 </div>
 
@@ -290,14 +290,14 @@ The nonlinear function $$\sigma$$ applied after each layer is the **activation f
 The most common default is **ReLU**: $$\text{ReLU}(z) = \max(0, z)$$.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/shallow_functions.png' | relative_url }}" alt="Functions computed by a shallow neural network">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/shallow_functions.png' | relative_url }}" alt="Functions computed by a shallow neural network">
     <div class="caption mt-1"><strong>What a single hidden layer can compute.</strong> Three examples of piecewise-linear functions (input \(x\) → output \(y\)) produced by a shallow network with ReLU activations. Each panel uses different weights and biases, yielding a different nonlinear mapping — none of which a linear model could represent. Source: Prince, <em>Understanding Deep Learning</em>, Fig 3.3 (CC BY-NC-ND).</div>
 </div>
 
 ### 2.6 Why Depth Matters: The Power of Composition
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-02-preliminary-features-and-architectures_diagram_1.png' | relative_url }}" alt="A two-hidden-layer MLP for solubility prediction">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-02-preliminary-features-and-architectures_diagram_1.png' | relative_url }}" alt="A two-hidden-layer MLP for solubility prediction">
     <div class="caption mt-1"><strong>A two-hidden-layer MLP for solubility prediction.</strong> The flattened padded sequence is transformed through two hidden layers of decreasing width (64, 32), each applying a linear transformation followed by an activation function. The output layer produces two scores (soluble vs. insoluble).</div>
 </div>
 
@@ -328,7 +328,7 @@ Protein networks follow the same principle.
 For a protein solubility predictor, the first layer detects which positions and amino acid identities are informative, extracting basic patterns from the flattened sequence. The second layer combines these into higher-level patterns --- local composition trends, position-specific signals --- and the output layer maps those abstract representations to a solubility prediction.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/deep_fold.png' | relative_url }}" alt="How deep networks compose functions">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/deep_fold.png' | relative_url }}" alt="How deep networks compose functions">
     <div class="caption mt-1"><strong>Why depth is powerful: function composition.</strong> (a) The first layer computes a piecewise-linear function \(y = f_1(x)\) (black), folding the input space at each kink (cyan shows the fold lines). (b) The second layer computes another piecewise-linear function \(y' = f_2(y)\) in the transformed space. (c) The composition \(y' = f_2(f_1(x))\) produces a function with far more linear regions than either layer alone — each fold in (a) multiplies the complexity of (b). A shallow network of the same width could not produce this many distinct regions. Source: Prince, <em>Understanding Deep Learning</em>, Fig 4.4 (CC BY-NC-ND).</div>
 </div>
 
@@ -342,7 +342,7 @@ The **activation function** $$\sigma$$ is applied element-wise after each linear
 As shown in Section 2.3, without it, stacking layers collapses to a single linear transformation --- activation functions are what give neural networks their expressive power.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/shallow_activations.png' | relative_url }}" alt="Common activation functions">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/shallow_activations.png' | relative_url }}" alt="Common activation functions">
     <div class="caption mt-1"><strong>Common activation functions.</strong> Each panel plots the activation \(\text{a}[z]\) (our \(\sigma(z)\)) as a function of its pre-activation input \(z\). (a) Sigmoid squashes to \((0, 1)\); tanh squashes to \((-1, 1)\). (b) Leaky ReLU and PReLU pass a small slope for negative inputs, avoiding "dead neurons." (c) Smooth variants used in modern architectures: softplus, GeLU (used in protein language models), SiLU. (d–f) More specialized activations including ELU, SELU, and Swish. Source: Prince, <em>Understanding Deep Learning</em>, Fig 3.13 (CC BY-NC-ND).</div>
 </div>
 

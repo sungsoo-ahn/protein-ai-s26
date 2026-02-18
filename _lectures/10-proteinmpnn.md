@@ -52,7 +52,7 @@ This lecture covers the full ProteinMPNN system: how it represents protein struc
 ### Forward Folding vs. Inverse Folding
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-09-proteinmpnn_diagram_0.png' | relative_url }}" alt="Forward folding versus inverse folding: forward folding maps one sequence to one structure via AlphaFold, while inverse folding maps one structure to multiple candidate sequences via ProteinMPNN">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_0.png' | relative_url }}" alt="Forward folding versus inverse folding: forward folding maps one sequence to one structure via AlphaFold, while inverse folding maps one structure to multiple candidate sequences via ProteinMPNN">
 </div>
 
 In Lecture 4, we studied **forward folding**: given a sequence of amino acids, predict the three-dimensional structure.
@@ -100,7 +100,7 @@ This means roughly 70--80% of positions can vary without disrupting the overall 
 For inverse folding, this redundancy is a blessing: there is a vast space of valid sequences for any given structure, making the search problem tractable.
 
 <div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/proteinmpnn_recovery.png' | relative_url }}" alt="ProteinMPNN sequence recovery comparison">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/proteinmpnn_recovery.png' | relative_url }}" alt="ProteinMPNN sequence recovery comparison">
     <div class="caption mt-1"><strong>Sequence recovery rates across inverse folding methods.</strong> ProteinMPNN achieves over 50% native sequence recovery on held-out test proteins, substantially outperforming previous methods. Adding coordinate noise during training further improves robustness. Data adapted from Dauparas et al., 2022.</div>
 </div>
 
@@ -137,11 +137,11 @@ By analyzing which sequence features ProteinMPNN considers important for a given
 ## 2. Graph Construction: Proteins as k-Nearest Neighbor Graphs
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-09-proteinmpnn_diagram_1.png' | relative_url }}" alt="Graph construction pipeline: backbone coordinates are converted to Cα distances, then a k-nearest neighbor graph with 30 neighbors per residue is built">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_1.png' | relative_url }}" alt="Graph construction pipeline: backbone coordinates are converted to Cα distances, then a k-nearest neighbor graph with 30 neighbors per residue is built">
 </div>
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/papers/proteinmpnn_bioRxiv_fig1.jpg' | relative_url }}" alt="ProteinMPNN architecture and sequence recovery">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/papers/proteinmpnn_bioRxiv_fig1.jpg' | relative_url }}" alt="ProteinMPNN architecture and sequence recovery">
     <div class="caption mt-1"><strong>ProteinMPNN overview.</strong> (a) A protein backbone is represented as a k-nearest-neighbor graph over residue positions. (b) The message-passing architecture encodes structural context and decodes amino acid sequences autoregressively. (c) Sequence recovery rates across different protein types. Source: Dauparas et al. (2022), bioRxiv, CC BY 4.0.</div>
 </div>
 
@@ -204,7 +204,7 @@ def build_knn_graph(ca_coords, k=30, exclude_self=True):
 ```
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/proteinmpnn_graph.png' | relative_url }}" alt="ProteinMPNN k-NN graph construction">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/proteinmpnn_graph.png' | relative_url }}" alt="ProteinMPNN k-NN graph construction">
     <div class="caption mt-1"><strong>From backbone to graph.</strong> Left: the protein backbone as a linear chain. Right: the k-nearest neighbor graph (k=5) connects each residue to its spatially closest neighbors, capturing long-range contacts that arise from chain folding. The red residue's 5 nearest spatial neighbors (orange) include residues far apart in sequence.</div>
 </div>
 
@@ -405,7 +405,7 @@ After three such layers, each residue's representation captures not just its own
 This contextual encoding is the foundation on which the decoder builds.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-09-proteinmpnn_diagram_2.png' | relative_url }}" alt="Three-layer message passing encoder: node and edge features pass through three successive layers capturing local geometry, secondary structure, and tertiary context to produce context-aware embeddings">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_2.png' | relative_url }}" alt="Three-layer message passing encoder: node and edge features pass through three successive layers capturing local geometry, secondary structure, and tertiary context to produce context-aware embeddings">
 </div>
 
 ---
@@ -413,7 +413,7 @@ This contextual encoding is the foundation on which the decoder builds.
 ## 5. Autoregressive Decoding: One Amino Acid at a Time
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-09-proteinmpnn_diagram_3.png' | relative_url }}" alt="Autoregressive decoding: encoder embeddings feed into a sequential decoder that generates amino acid probabilities one position at a time, each conditioned on previously decoded positions and the structure">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_3.png' | relative_url }}" alt="Autoregressive decoding: encoder embeddings feed into a sequential decoder that generates amino acid probabilities one position at a time, each conditioned on previously decoded positions and the structure">
 </div>
 
 Given the encoded structure, ProteinMPNN generates a sequence **autoregressively**: one amino acid at a time, where each prediction depends on all previous predictions.
@@ -792,12 +792,12 @@ This approach is efficient---the number of decoding steps equals the number of u
 ## 8. The Design Pipeline: RFDiffusion + ProteinMPNN + AlphaFold
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/design_pipeline.png' | relative_url }}" alt="Computational protein design pipeline">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/design_pipeline.png' | relative_url }}" alt="Computational protein design pipeline">
     <div class="caption mt-1"><strong>The computational protein design pipeline.</strong> A design specification is first converted to backbone coordinates by RFDiffusion, then to amino acid sequences by ProteinMPNN, then validated by AlphaFold2 structure prediction. Only sequences whose predicted structures match the design (TM-score > 0.8) proceed to experimental testing.</div>
 </div>
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-09-proteinmpnn_diagram_4.png' | relative_url }}" alt="Computational protein design pipeline: design specification flows through RFDiffusion for backbone generation, ProteinMPNN for sequence design, AlphaFold2 for structure validation, and finally experimental testing">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_4.png' | relative_url }}" alt="Computational protein design pipeline: design specification flows through RFDiffusion for backbone generation, ProteinMPNN for sequence design, AlphaFold2 for structure validation, and finally experimental testing">
 </div>
 
 ProteinMPNN's impact comes from its role in a larger pipeline.

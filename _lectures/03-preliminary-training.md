@@ -44,7 +44,7 @@ A neural network with random weights outputs meaningless noise.
 To make it learn, we need a way to quantify *how wrong* its predictions are, so that gradient descent can push the weights in the right direction.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/supervised_surface.png' | relative_url }}" alt="Loss surface for a linear regression model">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/supervised_surface.png' | relative_url }}" alt="Loss surface for a linear regression model">
     <div class="caption mt-1"><strong>The loss function as a surface over parameter space.</strong> A linear model with two parameters — intercept \(\phi_0\) (our bias \(b\)) and slope \(\phi_1\) (our weight \(w\)). (a) 3D view: the vertical axis shows the loss \(L[\phi]\) (our \(\mathcal{L}(\theta)\)). The bowl shape means gradient descent will converge to the unique minimum. (b) Top-down contour view of the same surface: darker regions have higher loss. The cyan and gray dots mark different parameter settings; training moves from high-loss regions toward the minimum. Source: Prince, <em>Understanding Deep Learning</em>, Fig 2.3 (CC BY-NC-ND).</div>
 </div>
 
@@ -196,7 +196,7 @@ Here $$\ell(\mathbf{x}_i, y_i; \theta)$$ is the loss for a single example, and $
 The mini-batch gradient approximates the full gradient using only $$B \ll n$$ examples.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/sgd_trajectory.png' | relative_url }}" alt="Gradient descent vs stochastic gradient descent trajectories">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/sgd_trajectory.png' | relative_url }}" alt="Gradient descent vs stochastic gradient descent trajectories">
     <div class="caption mt-1"><strong>Gradient descent vs. stochastic gradient descent.</strong> Both panels show the loss \(L[\phi]\) (our \(\mathcal{L}(\theta)\)) as a contour map over two parameters \(\phi_0, \phi_1\) (our \(\theta\)). Lighter regions are lower loss. (a) Full-batch gradient descent follows a smooth path from the starting point (top-left dot) to the minimum (numbered steps 1→3). (b) SGD takes a noisier, zigzagging path because each mini-batch gradient is a random approximation — but it still converges, and the noise can help escape shallow local minima. Source: Prince, <em>Understanding Deep Learning</em>, Fig 6.4 (CC BY-NC-ND).</div>
 </div>
 
@@ -215,7 +215,7 @@ Vanilla SGD can oscillate when the loss surface curves much more steeply in one 
 **Momentum** fixes this by accumulating a running average of recent gradients, so the optimizer builds speed in consistent directions and dampens oscillations.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/momentum.png' | relative_url }}" alt="Momentum and Nesterov momentum trajectories">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/momentum.png' | relative_url }}" alt="Momentum and Nesterov momentum trajectories">
     <div class="caption mt-1"><strong>How momentum improves optimization.</strong> Both panels show the loss \(L[\phi]\) (our \(\mathcal{L}(\theta)\)) as a contour map over two parameters. Two independent optimization runs are shown (cyan and white paths) from different starting points. (a) Without momentum, both runs take erratic paths with sharp direction changes. (b) With momentum, the optimizer accumulates velocity from recent gradients, smoothing the paths and making faster progress toward the minimum. Source: Prince, <em>Understanding Deep Learning</em>, Fig 6.7 (CC BY-NC-ND).</div>
 </div>
 
@@ -343,7 +343,7 @@ The `shuffle=True` flag is critical --- it makes SGD stochastic by randomizing w
 ### The Bias-Variance Tradeoff
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/bias_variance_tradeoff.png' | relative_url }}" alt="Bias-variance tradeoff: U-shaped test error">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/bias_variance_tradeoff.png' | relative_url }}" alt="Bias-variance tradeoff: U-shaped test error">
     <div class="caption mt-1"><strong>The bias-variance tradeoff.</strong> As model capacity increases (x-axis), bias decreases (orange) but variance increases (cyan). The total error (dashed black) forms a U-shape --- too simple models underfit, too complex models overfit. The sweet spot minimizes total error. Source: Prince, <em>Understanding Deep Learning</em>, Fig 8.4 (CC BY-NC-ND).</div>
 </div>
 
@@ -398,7 +398,7 @@ After iterating over all batches, compute the average loss and collect predictio
 ### What Overfitting Looks Like
 
 <div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/overfitting_curves.png' | relative_url }}" alt="Training vs validation loss showing overfitting">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/overfitting_curves.png' | relative_url }}" alt="Training vs validation loss showing overfitting">
     <div class="caption mt-1"><strong>Training and validation loss curves illustrating overfitting.</strong> Training loss decreases steadily, but validation loss begins increasing after ~40 epochs --- the model is memorizing the training data rather than learning generalizable patterns.</div>
 </div>
 

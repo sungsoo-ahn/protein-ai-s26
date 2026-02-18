@@ -85,7 +85,7 @@ $$
 ### From Invariance to Equivariance
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-08-rfdiffusion_diagram_0.png' | relative_url }}" alt="Invariance versus equivariance: an invariant function produces the same scalar output regardless of protein orientation, while an equivariant function produces a rotated output when the input is rotated">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-08-rfdiffusion_diagram_0.png' | relative_url }}" alt="Invariance versus equivariance: an invariant function produces the same scalar output regardless of protein orientation, while an equivariant function produces a rotated output when the input is rotated">
 </div>
 
 Invariance tells us what properties should not change under transformations.
@@ -306,7 +306,7 @@ Two pieces of information fully specify the placement of this unit in space:
 [^rigid]: Strictly, the backbone is not perfectly rigid --- bond angles and the peptide bond dihedral ($$\omega$$) have some flexibility. But the deviation from planarity is small enough that the rigid-body approximation is excellent for backbone generation.
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/wikimedia/backbone_dihedral_angles.png' | relative_url }}" alt="Protein backbone dihedral angles">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/wikimedia/backbone_dihedral_angles.png' | relative_url }}" alt="Protein backbone dihedral angles">
     <div class="caption mt-1"><strong>Backbone dihedral angles.</strong> The protein backbone is defined by repeating N-C&#945;-C units. The torsion angles &#966; (phi), &#968; (psi), and &#969; (omega) specify the conformation. The &#969; angle is typically fixed near 180&#176; (trans peptide bond), leaving &#966; and &#968; as the primary degrees of freedom. Source: Wikimedia Commons, CC BY 3.0.</div>
 </div>
 
@@ -317,12 +317,12 @@ The three **dihedral angles**[^dihedral] $$\phi$$, $$\psi$$, and $$\omega$$ spec
 Together, the pair $$(R_i, \vec{t}_i)$$ defines a **rigid-body frame** for residue $$i$$.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-08-rfdiffusion_diagram_1.png' | relative_url }}" alt="Residue frame construction: backbone atoms N, Cα, and C define a local coordinate system with three orthonormal axes, forming a rigid-body frame for each residue in the protein chain">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-08-rfdiffusion_diagram_1.png' | relative_url }}" alt="Residue frame construction: backbone atoms N, Cα, and C define a local coordinate system with three orthonormal axes, forming a rigid-body frame for each residue in the protein chain">
 </div>
 <div class="caption mt-1"><strong>Residue frame representation.</strong> Each residue defines a local coordinate frame from its three backbone atoms (N, Cα, C). The Cα position gives the translation t_i, and the orientation R_i is constructed from the N→Cα and Cα→C bond vectors. A protein backbone with L residues is a sequence of L such frames in SE(3).</div>
 
 <div class="col-sm-7 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/se3_frame_residue.png' | relative_url }}" alt="Local coordinate frame on a protein residue">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/se3_frame_residue.png' | relative_url }}" alt="Local coordinate frame on a protein residue">
     <div class="caption mt-1"><strong>Local coordinate frame on a residue.</strong> The three backbone atoms (N in blue, Cα in red, C in green) define a right-handed coordinate system. The x-axis (e₁) points from Cα toward C, the z-axis (e₃) is perpendicular to the N-Cα-C plane, and the y-axis (e₂) completes the frame. Neighboring residues are shown faded for context.</div>
 </div>
 
@@ -463,7 +463,7 @@ A sample from IGSO(3) with parameter $$\sigma$$ rotates this pointer by a random
 - In the limit $$\sigma \to \infty$$, the distribution becomes the uniform (Haar) measure over $$SO(3)$$: every orientation is equally likely.
 
 <div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/igso3_distribution.png' | relative_url }}" alt="IGSO(3) distribution for different noise levels">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/igso3_distribution.png' | relative_url }}" alt="IGSO(3) distribution for different noise levels">
     <div class="caption mt-1">IGSO(3) probability density as a function of rotation angle for different noise levels σ. At small σ (tight curves near 0°), the distribution is concentrated near the identity rotation. As σ increases, the density spreads across all rotation angles, approaching the uniform distribution on SO(3).</div>
 </div>
 
@@ -680,12 +680,12 @@ def diffuse_frames(frames, t, schedule):
 ```
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-08-rfdiffusion_diagram_2.png' | relative_url }}" alt="SE(3) diffusion forward and reverse processes: the forward process progressively adds noise to clean protein frames until they become random, while the reverse process iteratively denoises random frames to generate protein structure">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-08-rfdiffusion_diagram_2.png' | relative_url }}" alt="SE(3) diffusion forward and reverse processes: the forward process progressively adds noise to clean protein frames until they become random, while the reverse process iteratively denoises random frames to generate protein structure">
 </div>
 <div class="caption mt-1"><strong>SE(3) diffusion process.</strong> Forward: clean protein frames are progressively corrupted by Gaussian noise (translations) and IGSO(3) noise (rotations) until the structure is destroyed. Reverse: a neural network learns to denoise, iteratively recovering protein-like structure from random frames.</div>
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/udl/DiffusionReverse.png' | relative_url }}" alt="Reverse diffusion process">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/DiffusionReverse.png' | relative_url }}" alt="Reverse diffusion process">
     <div class="caption mt-1"><strong>The reverse diffusion process.</strong> Starting from noise, a trained neural network iteratively denoises the sample, gradually recovering structured data. In the protein context, this process generates realistic backbone frames from random orientations and positions. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
 
@@ -1040,7 +1040,7 @@ A functional motif --- say, a set of catalytic residues arranged in a specific g
 RFDiffusion generates the scaffold while holding the motif residues fixed.
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-08-rfdiffusion_diagram_3.png' | relative_url }}" alt="Motif scaffolding: a fixed functional motif and random scaffold noise are iteratively denoised over N steps, with the motif clamped at each step, producing a complete protein with the motif embedded in a designed scaffold">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-08-rfdiffusion_diagram_3.png' | relative_url }}" alt="Motif scaffolding: a fixed functional motif and random scaffold noise are iteratively denoised over N steps, with the motif clamped at each step, producing a complete protein with the motif embedded in a designed scaffold">
 </div>
 <div class="caption mt-1"><strong>Motif scaffolding.</strong> The functional motif (red) is held fixed at each denoising step, while the surrounding scaffold residues (initially random noise) are progressively denoised. The result is a novel protein that presents the motif in the correct geometry, supported by a computationally designed scaffold.</div>
 
@@ -1330,7 +1330,7 @@ Each step involves three operations:
 3. Any conditioning constraints are applied (e.g., fixing motif positions).
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/diffusion_reverse_protein.png' | relative_url }}" alt="Reverse diffusion process generating a protein structure">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_reverse_protein.png' | relative_url }}" alt="Reverse diffusion process generating a protein structure">
     <div class="caption mt-1"><strong>Reverse diffusion on protein frames.</strong> Starting from pure noise (t=1.0), the denoising network iteratively recovers protein-like structure. Each step predicts and partially removes the noise, until a coherent backbone emerges at t=0. Points are colored by chain position (N-terminus to C-terminus).</div>
 </div>
 

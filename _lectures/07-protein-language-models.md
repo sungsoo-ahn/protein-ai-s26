@@ -161,12 +161,12 @@ By learning from this vast corpus, protein language models capture knowledge tha
 ## 3. Masked Language Modeling
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mlm_protein_illustration.png' | relative_url }}" alt="Masked language modeling for protein sequences">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mlm_protein_illustration.png' | relative_url }}" alt="Masked language modeling for protein sequences">
     <div class="caption mt-1"><strong>Masked Language Modeling for proteins.</strong> Random amino acid positions are replaced with [MASK] tokens. The transformer encoder must predict the original identity at each masked position from the surrounding context. This self-supervised objective teaches the model evolutionary and structural constraints without any labels.</div>
 </div>
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/papers/mlife_zhou2024_fig2.jpg' | relative_url }}" alt="Three types of protein language models">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/papers/mlife_zhou2024_fig2.jpg' | relative_url }}" alt="Three types of protein language models">
     <div class="caption mt-1"><strong>Three paradigms for protein language models.</strong> Encoder-only models (like ESM-2) use masked language modeling to learn bidirectional representations. Decoder-only models generate sequences autoregressively. Encoder-decoder models combine both approaches. Source: Zhou et al. (2024), <em>mLife</em>, CC BY 4.0.</div>
 </div>
 
@@ -178,7 +178,7 @@ The concept is a fill-in-the-blank exercise applied at massive scale.
 ### The procedure
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-06-protein-language-models_diagram_0.png' | relative_url }}" alt="Masked language modeling procedure: a protein sequence is partially masked, processed by a transformer, and trained to reconstruct the original amino acids at masked positions">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-06-protein-language-models_diagram_0.png' | relative_url }}" alt="Masked language modeling procedure: a protein sequence is partially masked, processed by a transformer, and trained to reconstruct the original amino acids at masked positions">
 </div>
 
 1. Take a protein sequence $$x = (x_1, x_2, \ldots, x_L)$$, where $$L$$ is the sequence length and each $$x_i$$ is one of the 20 standard amino acids.
@@ -285,7 +285,7 @@ Each position is influenced by context on *both* sides, not just the left.
 It combines the Transformer architecture with large-scale training on protein sequence databases, producing representations that capture evolutionary, structural, and functional information.
 
 <div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/esm2_model_sizes.png' | relative_url }}" alt="ESM-2 model family sizes and performance">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/esm2_model_sizes.png' | relative_url }}" alt="ESM-2 model family sizes and performance">
     <div class="caption mt-1">The ESM-2 model family spans four orders of magnitude in size, from 8M to 15B parameters. Performance on downstream tasks (here, long-range contact prediction precision) improves steadily with model scale, following a scaling law consistent with findings in natural language processing.</div>
 </div>
 
@@ -390,7 +390,7 @@ The model is never told about structure, function, or conservation; it discovers
 ## 5. Extracting and Using Embeddings
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/blog/malina_prottrans_pipeline.png' | relative_url }}" alt="Pretrained protein language models used as feature extractors for per-residue and per-protein tasks">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/malina_prottrans_pipeline.png' | relative_url }}" alt="Pretrained protein language models used as feature extractors for per-residue and per-protein tasks">
     <div class="caption mt-1"><strong>Protein LMs as feature extractors.</strong> A pretrained model (trained with MLM, autoregressive, or seq2seq objectives) produces embeddings that are fed to lightweight task heads for per-residue predictions (secondary structure, binding sites) or per-protein predictions (localization, function). Source: Elnaggar et al., ProtTrans (2022).</div>
 </div>
 
@@ -663,7 +663,7 @@ Or, better yet, use LoRA.
 ## 8. LoRA: Efficient Adaptation
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-06-protein-language-models_diagram_1.png' | relative_url }}" alt="LoRA versus standard fine-tuning: standard updates all parameters of weight matrix W, while LoRA freezes W and adds a low-rank decomposition BA">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-06-protein-language-models_diagram_1.png' | relative_url }}" alt="LoRA versus standard fine-tuning: standard updates all parameters of weight matrix W, while LoRA freezes W and adds a low-rank decomposition BA">
 </div>
 
 Full fine-tuning of a 650M-parameter model requires storing optimizer states and gradients for every parameter, which can demand 10--20 GB of GPU memory.
@@ -827,7 +827,7 @@ The ultimate test of whether a language model truly "understands" proteins is wh
 ### Architecture
 
 <div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/mermaid/s26-06-protein-language-models_diagram_2.png' | relative_url }}" alt="ESMFold architecture: amino acid sequence passes through pretrained ESM-2 encoder to produce per-residue embeddings, then through a folding trunk and structure module to predict 3D coordinates">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-06-protein-language-models_diagram_2.png' | relative_url }}" alt="ESMFold architecture: amino acid sequence passes through pretrained ESM-2 encoder to produce per-residue embeddings, then through a folding trunk and structure module to predict 3D coordinates">
 </div>
 
 ESMFold takes a protein sequence, passes it through the ESM-2 backbone to produce per-residue embeddings, and then feeds those embeddings into a structure prediction module that generates atomic coordinates.
@@ -899,12 +899,12 @@ Positions that are close in space (within about 8 Angstroms) tend to attend stro
 This means the model has discovered, purely from sequence statistics, the same principle that underlies evolutionary coupling analysis: co-evolving residues are in structural contact.
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/attention_vs_contacts.png' | relative_url }}" alt="ESM attention map vs true contact map">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/attention_vs_contacts.png' | relative_url }}" alt="ESM attention map vs true contact map">
     <div class="caption mt-1"><strong>Attention weights predict structural contacts.</strong> Left: true residue-residue contact map from a crystal structure. Center: attention weights from ESM-2, averaged across heads. Right: overlay showing that high-attention pairs correspond to true long-range contacts. The model discovers 3D proximity from sequence data alone.</div>
 </div>
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/protein-ai/esm_contact_prediction.png' | relative_url }}" alt="ESM-2 attention correlates with structural contacts">
+    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/esm_contact_prediction.png' | relative_url }}" alt="ESM-2 attention correlates with structural contacts">
     <div class="caption mt-1"><strong>Attention as structure predictor.</strong> Left: ESM-2 attention map (averaged over heads and layers) for a 50-residue protein. Right: true structural contacts (8 Å threshold). The strong correspondence demonstrates that protein language models learn to encode 3D structural information purely from sequence statistics.</div>
 </div>
 
