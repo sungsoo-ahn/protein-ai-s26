@@ -1,0 +1,12 @@
+graph LR
+    M["Functional Motif<br/>(fixed geometry)"] --> D1["Denoise Step 1<br/>(clamp motif)"]
+    N["Random Scaffold<br/>(noise)"] --> D1
+    D1 --> D2["Denoise Step 2<br/>(clamp motif)"]
+    D2 --> DN["··· N steps ···"]
+    DN --> P["Complete Protein<br/>(motif + scaffold)"]
+
+    style M fill:#e74c3c,color:white
+    style N fill:#95a5a6,color:white
+    style P fill:#2ecc71,color:white
+    style D1 fill:#f39c12,color:white
+    style D2 fill:#f39c12,color:white

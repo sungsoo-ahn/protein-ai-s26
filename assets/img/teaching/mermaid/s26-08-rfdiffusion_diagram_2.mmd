@@ -1,0 +1,15 @@
+graph LR
+    subgraph Fwd["Forward Process (Adding Noise)"]
+        direction LR
+        T0["t=0<br/>Clean"] -->|"+noise"| T1["t=0.3<br/>Slightly noisy"] -->|"+noise"| T2["t=0.7<br/>Very noisy"] -->|"+noise"| T3["t=1.0<br/>Pure noise"]
+    end
+
+    subgraph Rev["Reverse Process (Denoising)"]
+        direction LR
+        R3["t=1.0<br/>Random"] -->|"denoise"| R2["t=0.7<br/>Partial"] -->|"denoise"| R1["t=0.3<br/>Mostly clean"] -->|"denoise"| R0["t=0<br/>Generated"]
+    end
+
+    style T0 fill:#2ecc71,color:white
+    style T3 fill:#e74c3c,color:white
+    style R3 fill:#e74c3c,color:white
+    style R0 fill:#2ecc71,color:white

@@ -1,0 +1,23 @@
+id: "2026-spring-protein-ai"
+title: "Protein & Artificial Intelligence"
+semester: "Spring 2026"
+institution: "KAIST"
+co_instructors:
+  - "Prof. Homin Kim"
+description: >-
+  This course explores the intersection of artificial intelligence and protein science.
+  The AI section covers modern deep learning approaches — from foundational concepts
+  to state-of-the-art models including AlphaFold, RFDiffusion, and ProteinMPNN.
+  All lecture notes are written in a textbook narrative style, accessible to students
+  new to machine learning.
+prerequisites: >-
+  Python programming, linear algebra, basic probability.
+  Prior deep learning experience is not required, but students without it
+  are expected to study the preliminary notes.
+preliminary_description: "Self-study material for students with a biology background to prepare for in-class lectures."
+lectures_description: "In-class lectures covering advanced architectures and landmark protein AI models."
+references:
+  - 'Jumper et al. (2021). "Highly accurate protein structure prediction with AlphaFold." *Nature*.'
+  - 'Watson et al. (2023). "De novo design of protein structure and function with RFdiffusion." *Nature*.'
+  - 'Dauparas et al. (2022). "Robust deep learning-based protein sequence design using ProteinMPNN." *Science*.'
+  - 'Lin et al. (2023). "Evolutionary-scale prediction of atomic-level protein structure with a language model." *Science*.'

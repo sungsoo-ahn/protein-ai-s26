@@ -1,0 +1,10 @@
+flowchart LR
+    SEQ["Amino Acid<br/>Sequence"] --> ESM["ESM-2<br/>Encoder<br/>(pretrained)"]
+    ESM --> EMB["Per-Residue<br/>Embeddings<br/>(L × 1280)"]
+    EMB --> FOLD["Folding<br/>Trunk"]
+    FOLD --> SM["Structure<br/>Module<br/>(IPA)"]
+    SM --> XYZ["3D Atomic<br/>Coordinates"]
+
+    style SEQ fill:#e8f4fd,stroke:#2196F3
+    style ESM fill:#fff3e0,stroke:#FF9800
+    style XYZ fill:#e8f5e9,stroke:#4CAF50

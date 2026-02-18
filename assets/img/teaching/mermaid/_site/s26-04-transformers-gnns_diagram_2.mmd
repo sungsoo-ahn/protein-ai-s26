@@ -1,0 +1,17 @@
+flowchart LR
+    X["Input x"] --> LN1["Layer Norm"]
+    LN1 --> MHA["Multi-Head<br/>Self-Attention"]
+    MHA --> ADD1["+ (Residual)"]
+    X --> ADD1
+
+    ADD1 --> LN2["Layer Norm"]
+    LN2 --> FFN["Feed-Forward Network<br/>(Linear → GELU → Linear)"]
+    FFN --> ADD2["+ (Residual)"]
+    ADD1 --> ADD2
+
+    ADD2 --> OUT["Output x'"]
+
+    style MHA fill:#fff3e0,stroke:#FF9800
+    style FFN fill:#e8f4fd,stroke:#2196F3
+    style ADD1 fill:#e8f5e9,stroke:#4CAF50
+    style ADD2 fill:#e8f5e9,stroke:#4CAF50

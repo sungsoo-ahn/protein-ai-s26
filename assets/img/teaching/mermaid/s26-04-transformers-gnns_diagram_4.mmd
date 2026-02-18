@@ -1,0 +1,10 @@
+flowchart LR
+    A["<b>L</b> tokens"] --> B["Embedding"]
+    B --> C["<b>(L, d)</b>"]
+    C --> D["Attention<br/><b>(L, L)</b> scores"]
+    D --> E["<b>(L, d)</b><br/>context-aware"]
+
+    style A fill:#e8f4fd,stroke:#4a90d9
+    style C fill:#d4edda,stroke:#28a745
+    style E fill:#d4edda,stroke:#28a745
+    style D fill:#fff3cd,stroke:#ffc107

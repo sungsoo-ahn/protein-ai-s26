@@ -1,0 +1,11 @@
+flowchart LR
+    IN["Node features<br/>(angles, positions)"] --> Encoder
+    EDGE["Edge features<br/>(distances)"] --> Encoder
+
+    subgraph Encoder["3-Layer Message Passing Encoder"]
+        L1["Layer 1<br/>(local geometry)"] --> L2["Layer 2<br/>(secondary)"] --> L3["Layer 3<br/>(tertiary)"]
+    end
+
+    Encoder --> OUT["Context-aware<br/>embeddings (L × d)"]
+
+    style Encoder fill:#fff3e0,stroke:#FF9800

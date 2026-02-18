@@ -1,0 +1,9 @@
+flowchart LR
+    XT["x_T (pure noise)"] --> D1["Denoise Step T"]
+    D1 --> D2["Denoise Step T−1"]
+    D2 --> DOTS["···"]
+    DOTS --> D3["Denoise Step 1"]
+    D3 --> X0["x_0 (generated protein)"]
+
+    style XT fill:#fce4ec,stroke:#e91e63
+    style X0 fill:#e8f5e9,stroke:#4CAF50

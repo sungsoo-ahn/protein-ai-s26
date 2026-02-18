@@ -1,0 +1,14 @@
+flowchart LR
+    MSA_IN["MSA repr (N×L×c_m)"] --> ROW["Row Attention<br/>(+ pair bias)"]
+    PAIR_IN["Pair repr (L×L×c_z)"] -->|"Bias"| ROW
+    ROW --> COL["Column Attention"]
+    COL --> MSA_FF["MSA Transition"]
+    MSA_FF -->|"Outer product mean"| TRI_OUT["Tri. Update (outgoing)"]
+    PAIR_IN --> TRI_OUT
+    TRI_OUT --> TRI_IN["Tri. Update (incoming)"]
+    TRI_IN --> TRI_ATT["Tri. Attention"]
+    TRI_ATT --> PAIR_FF["Pair Transition"]
+
+    style ROW fill:#fff3e0,stroke:#FF9800
+    style TRI_OUT fill:#e8f4fd,stroke:#2196F3
+    style TRI_IN fill:#e8f4fd,stroke:#2196F3

@@ -1,0 +1,14 @@
+flowchart LR
+    subgraph Inputs
+        direction LR
+        x1["x₁"] ~~~ x2["x₂"] ~~~ x3["x₃"]
+    end
+
+    Inputs --> WS["Σ wᵢxᵢ + b<br/>(weighted sum)"]
+    WS --> Act["σ(·)<br/>(activation)"]
+    Act --> Out["output"]
+
+    style Inputs fill:#e8f4fd,stroke:#2196F3
+    style WS fill:#fff3e0,stroke:#FF9800
+    style Act fill:#fce4ec,stroke:#e91e63
+    style Out fill:#e8f5e9,stroke:#4CAF50

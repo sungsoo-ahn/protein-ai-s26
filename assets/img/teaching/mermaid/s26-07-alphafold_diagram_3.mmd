@@ -1,0 +1,11 @@
+flowchart LR
+    S["Per-residue features s_i"] --> QS["Scalar Q, K"]
+    S --> QP["Point Q, K<br/>(local frame T_i)"]
+    PAIR["Pair repr z_ij"] --> BIAS["Pair bias"]
+    QS --> ATTN["Attention<br/>score a_ij"]
+    QP -->|"frame<br/>transform"| ATTN
+    BIAS --> ATTN
+    ATTN --> OUT["Softmax →<br/>weighted sum"]
+
+    style QP fill:#e8f4fd,stroke:#2196F3
+    style ATTN fill:#fff3e0,stroke:#FF9800

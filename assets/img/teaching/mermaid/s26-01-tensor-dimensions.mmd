@@ -1,0 +1,14 @@
+flowchart LR
+    A["Scalar<br/>(shape: ())"]
+    B["Vector<br/>(shape: (20,))"]
+    C["Matrix<br/>(shape: (L, 20))"]
+    D["3D Tensor<br/>(shape: (B, L, 20))"]
+
+    A -->|"add<br/>dimension"| B
+    B -->|"stack L<br/>residues"| C
+    C -->|"batch B<br/>proteins"| D
+
+    style A fill:#e8f4f8,stroke:#2196F3
+    style B fill:#e8f4f8,stroke:#2196F3
+    style C fill:#e8f4f8,stroke:#2196F3
+    style D fill:#fff3e0,stroke:#FF9800

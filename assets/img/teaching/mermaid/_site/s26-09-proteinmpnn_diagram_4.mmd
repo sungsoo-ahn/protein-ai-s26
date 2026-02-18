@@ -1,0 +1,10 @@
+flowchart LR
+    SPEC["Design Spec"] --> RFD["RFDiffusion"]
+    RFD --> MPNN["ProteinMPNN"]
+    MPNN --> AF["AlphaFold2"]
+    AF -->|"TM > 0.8"| EXP["Experimental<br/>Validation"]
+
+    style RFD fill:#fce4ec,stroke:#e91e63
+    style MPNN fill:#e8f5e9,stroke:#4CAF50
+    style AF fill:#e8f4fd,stroke:#2196F3
+    style EXP fill:#fff3e0,stroke:#FF9800

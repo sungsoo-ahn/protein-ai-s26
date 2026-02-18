@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph Graph["Graph and message direction for node 1"]
+        G2((2)):::nbr --- G1((1)):::target
+        G3((3)):::nbr --- G1
+        G4((4)):::nbr --- G1
+        G2 --- G3
+
+        G2 -.->|"m<sub>12</sub>"| G1
+        G3 -.->|"m<sub>13</sub>"| G1
+        G4 -.->|"m<sub>14</sub>"| G1
+    end
+
+    Graph --> STEP1["<b>1. Message</b><br/>m<sub>1j</sub> = ψ(h<sub>1</sub>, h<sub>j</sub>, e<sub>1j</sub>)<br/>for j ∈ {2, 3, 4}"]:::msg
+
+    STEP1 --> STEP2["<b>2. Aggregate</b><br/>m<sub>1</sub> = ⊕{ m<sub>12</sub>, m<sub>13</sub>, m<sub>14</sub> }"]:::agg
+
+    STEP2 --> STEP3["<b>3. Update</b><br/>h<sub>1</sub>' = φ(h<sub>1</sub>, m<sub>1</sub>)"]:::agg
+
+    STEP3 --> OUT["h<sub>1</sub>'<br/>(updated)"]:::result
+
+    classDef target fill:#f3e5f5,stroke:#9C27B0,stroke-width:3px
+    classDef nbr fill:#e0e0e0,stroke:#757575
+    classDef msg fill:#e8f4fd,stroke:#2196F3
+    classDef agg fill:#fff3cd,stroke:#ffc107
+    classDef result fill:#fff3e0,stroke:#FF9800,stroke-width:3px

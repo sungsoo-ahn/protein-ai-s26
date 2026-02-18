@@ -1,0 +1,7 @@
+flowchart LR
+    BACKBONE["Backbone<br/>Coordinates<br/>(N, Cα, C, O)"] --> DIST["Compute Cα<br/>Distances"]
+    DIST --> KNN["k-Nearest<br/>Neighbors<br/>(k = 30)"]
+    KNN --> GRAPH["Protein Graph<br/>(L nodes, 30·L edges)"]
+
+    style BACKBONE fill:#e8f4fd,stroke:#2196F3
+    style GRAPH fill:#e8f5e9,stroke:#4CAF50

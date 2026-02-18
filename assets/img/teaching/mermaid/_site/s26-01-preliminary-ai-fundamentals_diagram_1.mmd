@@ -1,0 +1,9 @@
+flowchart LR
+    X["Input Features<br/>(100 × 10)"] --> MM["Matrix Multiply<br/>X·W"]
+    W["Weights W<br/>(10 × 1)"] --> MM
+    MM --> Add["Add Bias<br/>+ b"]
+    Add --> Y["Predictions ŷ<br/>(100 × 1)"]
+
+    style X fill:#e8f4fd,stroke:#2196F3
+    style W fill:#fff3e0,stroke:#FF9800
+    style Y fill:#e8f5e9,stroke:#4CAF50

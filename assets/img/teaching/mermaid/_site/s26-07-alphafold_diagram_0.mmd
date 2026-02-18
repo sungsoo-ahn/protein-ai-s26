@@ -1,0 +1,10 @@
+flowchart LR
+    SEQ["Protein Sequence"]
+    SEQ --> MSA_EMB["MSA Embedding<br/>(N_seq × L × c_m)"]
+    SEQ --> PAIR_EMB["Pair Embedding<br/>(L × L × c_z)"]
+    MSA_EMB & PAIR_EMB --> EVO["Evoformer<br/>(48 blocks)"]
+    EVO --> SM["Structure Module<br/>(8 iterations)"]
+    SM --> XYZ["3D Coordinates<br/>+ pLDDT"]
+
+    style EVO fill:#fff3e0,stroke:#FF9800
+    style SM fill:#e8f5e9,stroke:#4CAF50

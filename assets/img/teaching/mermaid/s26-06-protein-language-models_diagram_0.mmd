@@ -1,0 +1,8 @@
+flowchart LR
+    SEQ["M V L S P A D K T N"] -->|"15% masking"| MASKED["M V ‹mask› S P ‹mask› D K T N"]
+    MASKED --> MODEL["Transformer (ESM-2)"]
+    MODEL --> PRED["M V L S P A D K T N"]
+    PRED -->|"CE loss at<br/>masked pos."| LOSS["L_MLM"]
+
+    style MASKED fill:#fff3e0,stroke:#FF9800
+    style PRED fill:#e8f5e9,stroke:#4CAF50
