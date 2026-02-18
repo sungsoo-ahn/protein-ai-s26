@@ -1519,8 +1519,13 @@ But RFDiffusion's experimental success has established SE(3) diffusion as a domi
 
 ---
 
+<div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/13-nano-rfdiffusion/' | relative_url }}">nano-rfdiffusion code walkthrough</a> implements this lecture's algorithm from scratch in 607 lines of PyTorch. SE(3) diffusion, IPA denoising, self-conditioning — all in two files.
+</div>
+
 ## Further Reading
 
+- **Code walkthrough:** [nano-rfdiffusion]({{ '/lectures/13-nano-rfdiffusion/' | relative_url }}) — build RFDiffusion from scratch in 607 lines of PyTorch
 - Lilian Weng, ["What are Diffusion Models?"](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) — covers the foundational diffusion framework that RFdiffusion builds upon, including DDPM, score matching, and classifier guidance.
 - Stephan Heijl, ["A New Protein Design Era with Protein Diffusion"](https://stephanheijl.com/rfdiffusion.html) — detailed technical walkthrough of RFDiffusion's denoising process, RoseTTAFold fine-tuning, and motif scaffolding.
 - Baker Lab, ["A Diffusion Model for Protein Design"](https://www.bakerlab.org/2023/07/11/diffusion-model-for-protein-design/) — official blog on RFDiffusion's capabilities including binder design and symmetric oligomer generation.

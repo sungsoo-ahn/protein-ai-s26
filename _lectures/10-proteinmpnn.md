@@ -935,8 +935,13 @@ It runs in seconds per sequence on a single GPU, requires no MSA computation, an
 
 ---
 
+<div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/14-nano-proteinmpnn/' | relative_url }}">nano-proteinmpnn code walkthrough</a> implements this lecture's architecture from scratch in 448 lines of PyTorch. k-NN graph, MPNN encoder, random-order decoder — fork it and swap in a larger dataset.
+</div>
+
 ## Further Reading
 
+- **Code walkthrough:** [nano-proteinmpnn]({{ '/lectures/14-nano-proteinmpnn/' | relative_url }}) — build ProteinMPNN from scratch in 448 lines of PyTorch
 - 310.ai, ["ProteinMPNN: Message Passing on Protein Structures"](https://310.ai/blog/proteinmpnn-message-passing-on-protein-structures) — walkthrough of ProteinMPNN's backbone encoding, edge/node message passing, and order-agnostic autoregressive decoding.
 
 ---

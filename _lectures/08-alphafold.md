@@ -1248,8 +1248,13 @@ For reference, predicting the structure of a single ~400-residue protein takes a
 
 ---
 
+<div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/12-nano-alphafold2/' | relative_url }}">nano-alphafold2 code walkthrough</a> implements this lecture's architecture from scratch in ~650 lines of PyTorch. Pairformer, SE(3) diffusion, FAPE loss — two files you can read in an afternoon.
+</div>
+
 ## Further Reading
 
+- **Code walkthrough:** [nano-alphafold2]({{ '/lectures/12-nano-alphafold2/' | relative_url }}) — build AlphaFold2 from scratch in ~650 lines of PyTorch
 - Elana Simon & Jake Silberg, ["The Illustrated AlphaFold"](https://elanapearl.github.io/blog/2024/the-illustrated-alphafold/) — Jay-Alammar-style visual walkthrough of AlphaFold 3's full architecture with step-by-step diagrams.
 - Oxford Protein Informatics Group, ["AlphaFold 2: What's Behind the Structure Prediction Miracle"](https://www.blopig.com/blog/2021/07/alphafold-2-is-here-whats-behind-the-structure-prediction-miracle/) — technical breakdown of Evoformer, IPA, and the structure module.
 - Fabian Fuchs, ["AlphaFold 2 & Equivariance"](https://fabianfuchsml.github.io/alphafold2/) — how AlphaFold 2's structure module achieves SE(3) equivariance through iterative refinement.

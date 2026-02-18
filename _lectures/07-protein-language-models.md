@@ -1074,8 +1074,13 @@ This is especially important for fine-tuning experiments where small differences
 
 ---
 
+<div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/11-nano-esm2/' | relative_url }}">nano-esm2 code walkthrough</a> implements this lecture's architecture from scratch in 288 lines of PyTorch. Two files, no abstractions — fork it, break it, learn from it.
+</div>
+
 ## Further Reading
 
+- **Code walkthrough:** [nano-esm2]({{ '/lectures/11-nano-esm2/' | relative_url }}) — build ESM2 from scratch in 288 lines of PyTorch
 - Stephen Malina, ["Protein Language Models (Part 1)"](https://stephenmalina.com/post/2023-07-22-protein-language-models-part-1/) and ["Part 2"](https://stephenmalina.com/post/2023-08-05-protein-language-models-part-2/) — comprehensive review of PLM architectures (ESM-1b, ESM-2, UniRep, CARP) and their scaling behavior.
 - Evolutionary Scale, ["ESM Cambrian"](https://www.evolutionaryscale.ai/blog/esm-cambrian) — official blog on unsupervised protein representation learning at evolutionary scale.
 - Evolutionary Scale, ["ESM3: Simulating 500 Million Years of Evolution"](https://www.evolutionaryscale.ai/blog/esm3-release) — multimodal protein language modeling across sequence, structure, and function.
