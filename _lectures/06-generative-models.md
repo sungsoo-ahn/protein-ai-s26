@@ -1,12 +1,12 @@
 ---
 layout: post
-title: "Generative Models: VAEs and Diffusion for Proteins"
+title: "Variational Autoencoders for Proteins"
 date: 2026-03-23
-description: "Variational autoencoders and denoising diffusion models—two frameworks for generating novel proteins, from the ELBO derivation to the denoising score-matching objective."
+description: "Variational autoencoders for generating novel proteins—the encoder-decoder framework, the ELBO derivation, and the reparameterization trick."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 2
+lecture_number: 3
 preliminary: false
 toc:
   sidebar: left
@@ -14,7 +14,7 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 2 of the Protein & Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The course covers core machine learning techniques for protein science, from representation learning to generative design. In this lecture we shift from discriminative models—which predict properties of existing proteins—to generative models that can imagine entirely new ones.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 3 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. Lectures 1 and 2 introduced transformers and graph neural networks—architectures that process protein sequences and structures. This lecture shifts from discriminative models to generative models that can imagine entirely new proteins.</em></p>
 
 ## Introduction: Dreaming Up New Proteins
 
@@ -32,12 +32,7 @@ Molecular machines that catalyze reactions no natural enzyme has ever performed.
 Generative models give us a systematic way to explore this vast, uncharted territory.
 Instead of waiting for evolution to stumble upon useful proteins through random mutation, we can train machine learning models to internalize the statistical patterns that make proteins work—and then sample novel sequences and structures from the learned distribution.
 
-In Lecture 1 we studied **transformers** and **graph neural networks**, architectures that process protein sequences and structures.
-Those were discriminative tools: given a protein, predict a property.
-This lecture flips the direction.
-We ask: *given a desired property or no constraint at all, can we generate a protein that satisfies it?*
-
-We will study two foundational frameworks for generative modeling—**variational autoencoders (VAEs)** and **denoising diffusion probabilistic models (DDPMs)**—and see how each has been applied to design proteins that have never existed in nature.
+This lecture develops the **variational autoencoder (VAE)**—the first of two generative frameworks we cover.  We start with the core challenge of training a noise-to-protein decoder, build the encoder-decoder architecture with KL regularization, derive the ELBO from maximum likelihood, and solve the backpropagation-through-sampling problem with the reparameterization trick.  The companion lecture develops diffusion models.
 
 ### Roadmap
 
@@ -47,11 +42,7 @@ We will study two foundational frameworks for generative modeling—**variationa
 | 2 | The Variational Autoencoder | Introduces encoder, decoder, and KL regularization as one coherent idea |
 | 3 | The ELBO: Formalizing the Training Objective | Derives the principled training objective from maximum likelihood |
 | 4 | The Reparameterization Trick | Solves the practical problem of backpropagating through sampling |
-| 5 | Diffusion Models: Controlled Destruction | Introduces the forward noising process |
-| 6 | The Reverse Process and Training Objective | Shows how the network learns to denoise |
-| 7 | The Denoising Loop and Architecture | Covers generation and timestep conditioning |
-| 8 | VAEs vs. Diffusion | Compares strengths, weaknesses, and computational trade-offs |
-| 9 | Conditional Generation | Classifier guidance and classifier-free guidance for steering generation |
+| 5 | Case Study: Bead-Spring Polymer VAE | Applies every VAE concept to a concrete 2D toy system |
 
 ---
 
@@ -62,6 +53,12 @@ The goal is concrete: build a machine that takes random noise as input and outpu
 Suppose you have a database of 50,000 serine protease sequences.
 Despite their diversity—some share less than 30% sequence identity—they all fold into similar structures, catalyze the same reaction, and place a conserved catalytic triad (Ser, His, Asp) in nearly identical spatial positions.
 You want a neural network that can generate *new* serine proteases—sequences not in the database, but statistically indistinguishable from those that are.
+
+A toy analogue makes this challenge concrete without the complexity of real proteins.
+A **bead-spring polymer** is a coarse-grained model: 12 point masses ("beads") connected by springs in 2D.
+Each conformation is 12 beads $$\times$$ 2 coordinates = a 24-dimensional vector — small enough to train on a laptop in minutes, rich enough to exhibit the same generative challenge.
+A dataset of ~10,000 polymer conformations from molecular dynamics simulation serves as our "protein database": diverse shapes (compact coils, extended chains) sampled from a thermal distribution.
+The goal is identical to the serine protease case — generate new conformations that are statistically indistinguishable from the training data — but now we can visualize every step in 2D.
 
 The architecture is simple: a **decoder** network $$f_\theta$$ that maps a random vector $$z$$ to a protein sequence $$x$$.
 At inference time, we sample $$z \sim \mathcal{N}(0, I)$$, feed it through the decoder, and read off the generated sequence.
@@ -101,6 +98,26 @@ class ProteinDecoder(nn.Module):
         h = torch.relu(self.fc1(z))
         return self.fc2(h)  # raw logits; softmax is applied in the loss
 ```
+
+For the bead-spring polymer, the decoder is an MLP that maps a 2-dimensional latent vector to 24 output coordinates — three hidden layers of 256 units with ReLU activations. The output is the reconstructed bead positions, not logits: for continuous coordinate data, the decoder directly predicts $$\hat{x} \in \mathbb{R}^{24}$$ and the reconstruction loss is mean squared error rather than cross-entropy.
+
+```python
+class PolymerDecoder(nn.Module):
+    """Decodes a 2D latent vector into 24D polymer coordinates."""
+
+    def __init__(self, latent_dim=2, hidden_dim=256, output_dim=24):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim),
+        )
+
+    def forward(self, z):
+        return self.net(z)
+```
+<div class="caption mt-1">Polymer decoder: 2D latent → 256 → 256 → 256 → 24D coordinates. The protein decoder above outputs logits over amino acids; this one outputs continuous coordinates.</div>
 
 ### Idea 2: The Encoder as a Training Trick
 
@@ -143,6 +160,30 @@ class ProteinEncoder(nn.Module):
 We output $$\log \sigma^2$$ rather than $$\sigma^2$$ directly.
 Exponentiating a real number always yields a positive result, so this parameterization guarantees positive variance without needing explicit constraints.
 
+For the polymer, the encoder maps 24D coordinates to a 2-dimensional latent space — the same three-hidden-layer MLP in reverse. An alternative to the log-variance parameterization is the **softplus** function ($$\log(1 + e^x)$$), which directly outputs a positive standard deviation $$\sigma$$. Both guarantee positivity; softplus is smoother near zero.
+
+```python
+class PolymerEncoder(nn.Module):
+    """Encodes 24D polymer coordinates into 2D Gaussian parameters (mu, sigma)."""
+
+    def __init__(self, input_dim=24, hidden_dim=256, latent_dim=2):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+        )
+        self.fc_mu = nn.Linear(hidden_dim, latent_dim)
+        self.fc_sigma = nn.Linear(hidden_dim, latent_dim)
+
+    def forward(self, x):
+        h = self.net(x)
+        mu = self.fc_mu(h)
+        sigma = nn.functional.softplus(self.fc_sigma(h))  # sigma > 0
+        return mu, sigma
+```
+<div class="caption mt-1">Polymer encoder: 24D coordinates → 256 → 256 → 256 → 2D mean + 2D softplus standard deviation. The softplus parameterization is an alternative to log-variance.</div>
+
 [^posterior]: In Bayesian terminology, the *posterior* is the distribution over latent variables given observed data.  The word "approximate" reminds us that $$q_\phi$$ is a parametric family (here, diagonal Gaussians) that may not perfectly match the true posterior.
 
 ### Idea 3: KL Regularization
@@ -167,6 +208,8 @@ The entire latent space becomes populated: sampling $$z \sim \mathcal{N}(0, I)$$
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/VAEArch.png' | relative_url }}" alt="VAE architecture">
     <div class="caption mt-1"><strong>Variational autoencoder architecture.</strong> The encoder \(\mathbf{g}[\mathbf{x}, \boldsymbol{\theta}]\) maps input data \(\mathbf{x}\) to the mean \(\boldsymbol{\mu}\) and covariance \(\boldsymbol{\Sigma}\) of a variational distribution \(q(\mathbf{z}|\mathbf{x}, \boldsymbol{\theta})\). A latent code \(\mathbf{z}^*\) is sampled from this distribution and passed to the decoder \(\mathbf{f}[\mathbf{z}^*, \boldsymbol{\phi}]\), which outputs the reconstruction probability \(Pr(\mathbf{x}|\mathbf{z}^*, \boldsymbol{\phi})\). The ELBO loss (top) combines two terms: the reconstruction log-probability \(\log Pr(\mathbf{x}|\mathbf{z}^*, \boldsymbol{\phi})\) (data should have high probability) and the KL divergence \(D_{KL}[q(\mathbf{z}|\mathbf{x}, \boldsymbol{\theta}) \| Pr(\mathbf{z})]\) (variational distribution should be close to the prior). <em>Note: this figure uses \(\boldsymbol{\theta}\) for the encoder and \(\boldsymbol{\phi}\) for the decoder; our text uses the opposite convention (\(\phi\) for encoder, \(\theta\) for decoder).</em> Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
 </div>
+
+The balance between these two terms matters in practice. For continuous coordinate data like the bead-spring polymer, the reconstruction loss (MSE) and KL loss operate on different scales — MSE over 24 coordinates versus KL over 2 latent dimensions. The **$$\beta$$-VAE** (Higgins et al., 2017) introduces a weighting parameter: $$\mathcal{L} = \text{Reconstruction} + \beta \cdot D_{\mathrm{KL}}$$. Setting $$\beta = 0.01$$ lets the model first learn faithful coordinate reconstruction before organizing the latent space. With $$\beta = 1$$ (the standard VAE), the KL term dominates early in training and can collapse the latent space before the decoder learns anything useful.
 
 To summarize the two loss terms intuitively:
 - **Reconstruction loss**: the decoder should recover $$x$$ from the proposed $$z$$.
@@ -310,372 +353,95 @@ def reparameterize(mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
 
 ---
 
-## 5. Diffusion Models: Controlled Destruction
+## 5. Case Study: Bead-Spring Polymer VAE
 
-### A Different Philosophy
+Every concept from Sections 1–4 — the decoder, the encoder, KL regularization, the ELBO, the reparameterization trick — comes together in a single working system. The bead-spring polymer introduced in Section 1 provides a concrete testbed: 12 beads in 2D, 24-dimensional coordinate vectors, ~10,000 conformations from molecular dynamics.
 
-VAEs learn generation by compressing data into a structured latent space.
-Diffusion models take an entirely different approach: they learn generation by learning to *undo corruption*.
+### Setup and Preprocessing
 
-Sharpening a blurry photograph is far easier than painting a photorealistic image from a blank canvas.  Diffusion models exploit this asymmetry: instead of generating from scratch, they decompose generation into many small denoising steps.
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_image_noising.png' | relative_url }}" alt="An image progressively corrupted by Gaussian noise (forward process) and recovered by denoising (reverse process)">
-    <div class="caption mt-1"><strong>Diffusion on an image.</strong> The forward process \(q\) progressively adds Gaussian noise until the image becomes indistinguishable from random noise.  The reverse process \(p_\theta\) learns to undo each step, recovering the clean image from pure noise.</div>
-</div>
-
-The same idea applies to any continuous data.  Imagine taking the 3D coordinates of a protein backbone and jittering every atom by a tiny random displacement.
-The resulting structure is still recognizable, and a neural network could plausibly predict the original positions from this lightly perturbed version.
-Repeat the corruption many times until the coordinates become indistinguishable from random points in space.
-If the network can reverse *each individual step*, chaining all the reverse steps together recovers a clean structure from pure noise.
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_pointcloud_noising.png' | relative_url }}" alt="A 2D point cloud progressively corrupted by Gaussian noise and recovered by denoising">
-    <div class="caption mt-1"><strong>Diffusion on a point cloud.</strong> Structured coordinates (left) are progressively corrupted until they resemble a random Gaussian scatter (right).  The reverse process learns to recover the original structure step by step.  For proteins, the points represent residue positions in 3D space.</div>
-</div>
-
-### The Forward Process: Adding Noise
-
-Let $$x_0 \in \mathbb{R}^D$$ denote a clean data point—say, the 3D coordinates of a protein backbone or a continuous embedding of a sequence.
-The **forward process** produces a sequence of increasingly noisy versions $$x_1, x_2, \ldots, x_T$$ by adding Gaussian noise at each step:
-
-$$q(x_t \mid x_{t-1}) = \mathcal{N}\!\bigl(x_t;\; \sqrt{1 - \beta_t}\, x_{t-1},\; \beta_t I\bigr)$$
-
-Here $$\beta_t \in (0, 1)$$ is a scalar controlling how much noise is added at step $$t$$, and $$T$$ is the total number of steps (typically 1000).
-The collection $$\{\beta_1, \beta_2, \ldots, \beta_T\}$$ is called the **noise schedule**.
-It usually starts small (gentle corruption early on) and increases over time (aggressive corruption later).
-
-<div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/DiffusionForward2.png' | relative_url }}" alt="Forward diffusion process">
-    <div class="caption mt-1"><strong>Forward diffusion process.</strong> (a) Three example trajectories: clean data \(x\) (top) is progressively corrupted through noisy versions \(z_{20}, z_{40}, \ldots, z_{100}\), converging to pure noise. (b) The conditional distributions \(q(z_1|x)\), \(q(z_{41}|z_{40})\), \(q(z_{81}|z_{80})\) at selected steps. Each step adds a small amount of Gaussian noise, so the conditional is a narrow Gaussian centered near the previous value. As diffusion progresses, the distributions widen and overlap, erasing information about the starting point. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
-</div>
-
-<div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/diffusion_noise_schedule.png' | relative_url }}" alt="Diffusion noise schedule">
-    <div class="caption mt-1">A linear noise schedule over 1000 timesteps. β_t (noise variance per step) increases linearly. √ᾱ_t (signal coefficient) decays from 1 to near 0 — the clean signal is gradually destroyed. √(1−ᾱ_t) (noise coefficient) grows from 0 to 1 — by t=T, the data is pure noise.</div>
-</div>
-
-A key mathematical property eliminates the need to apply noise sequentially.
-Define $$\alpha_t = 1 - \beta_t$$ and $$\bar{\alpha}_t = \prod_{s=1}^{t} \alpha_s$$ (the cumulative product).
-Then we can jump directly from $$x_0$$ to any $$x_t$$:
-
-$$q(x_t \mid x_0) = \mathcal{N}\!\bigl(x_t;\; \sqrt{\bar{\alpha}_t}\, x_0,\; (1 - \bar{\alpha}_t) I\bigr)$$
-
-Equivalently:
-
-$$x_t = \sqrt{\bar{\alpha}_t}\, x_0 + \sqrt{1 - \bar{\alpha}_t}\, \epsilon, \quad \epsilon \sim \mathcal{N}(0, I)$$
-
-This closed-form expression is essential for efficient training—we can sample any noisy version of the data in a single operation without iterating through all previous timesteps.
+Raw polymer coordinates contain translation and rotation as nuisance variation. **Center-of-mass subtraction** removes translation; **PCA alignment** rotates each conformation so its principal axis aligns with the x-axis. The preprocessed data is flattened to 24-dimensional vectors — the input to the VAE.
 
 ```python
-class DiffusionSchedule:
-    """Precomputes noise schedule quantities for efficient training."""
+def center_com(paths):
+    """Subtract center of mass from each conformation."""
+    return paths - np.mean(paths, axis=-2, keepdims=True)
 
-    def __init__(self, T: int = 1000, beta_start: float = 1e-4,
-                 beta_end: float = 0.02):
-        self.T = T
+def align_principal(paths):
+    """Rotate each conformation to align principal axis with x-axis."""
+    aligned = np.zeros_like(paths)
+    for i, p in enumerate(paths):
+        inertia = p.T @ p
+        _, evecs = np.linalg.eigh(inertia)
+        axis = evecs[:, -1]  # largest eigenvalue
+        angle = -np.arctan2(axis[1], axis[0])
+        c, s = np.cos(angle), np.sin(angle)
+        aligned[i] = p @ np.array([[c, -s], [s, c]]).T
+    return aligned
 
-        # Linear schedule from beta_start to beta_end
-        self.betas = torch.linspace(beta_start, beta_end, T)
-
-        # Precompute alpha, cumulative alpha, and their square roots
-        self.alphas = 1.0 - self.betas
-        self.alpha_bars = torch.cumprod(self.alphas, dim=0)
-        self.sqrt_alpha_bars = torch.sqrt(self.alpha_bars)
-        self.sqrt_one_minus_alpha_bars = torch.sqrt(1.0 - self.alpha_bars)
-
-    def add_noise(self, x0: torch.Tensor, t: torch.Tensor,
-                  noise: torch.Tensor = None) -> torch.Tensor:
-        """Sample x_t from q(x_t | x_0) using the closed-form expression.
-
-        Args:
-            x0: clean data, shape [batch, ...]
-            t: timestep indices, shape [batch]
-            noise: optional pre-sampled noise (same shape as x0)
-        """
-        if noise is None:
-            noise = torch.randn_like(x0)
-
-        # Reshape for broadcasting: [batch, 1, 1, ...]
-        sqrt_ab = self.sqrt_alpha_bars[t].view(-1, *([1] * (x0.dim() - 1)))
-        sqrt_1m_ab = self.sqrt_one_minus_alpha_bars[t].view(-1, *([1] * (x0.dim() - 1)))
-
-        return sqrt_ab * x0 + sqrt_1m_ab * noise
+data = align_principal(center_com(paths))
+flat_data = data.reshape(-1, 24)  # (N, 24)
 ```
+<div class="caption mt-1">Preprocessing: center-of-mass subtraction (translation invariance) and PCA rotation (rotation invariance). The flattened 24D vector is the VAE's input.</div>
 
----
+### The Combined Model
 
-## 6. The Reverse Process and Training Objective
-
-### Learning to Denoise
-
-The forward process is fixed—no learnable parameters.
-All the learning happens in the **reverse process**, which starts from pure noise $$x_T \sim \mathcal{N}(0, I)$$ and iteratively recovers the data.
-Each reverse step is modeled as:
-
-$$p_\theta(x_{t-1} \mid x_t) = \mathcal{N}\!\bigl(x_{t-1};\; \mu_\theta(x_t, t),\; \sigma_t^2 I\bigr)$$
-
-where $$\mu_\theta$$ is a neural network with parameters $$\theta$$ that predicts the denoised mean, and $$\sigma_t^2$$ is typically set to $$\beta_t$$ (or a related fixed quantity).
-
-<div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/udl/DiffusionReverse.png' | relative_url }}" alt="Reverse denoising process">
-    <div class="caption mt-1"><strong>Reverse denoising process.</strong> (a) The marginal distribution \(q(z_t)\) (heatmap) spreads out as \(t\) increases. Sampled points \(z_3^*, z_{10}^*, z_{20}^*\) are shown at selected timesteps. (b) At each step, the forward conditional \(q(z_{t+1}|z_t)\) (brown) and reverse conditional \(q(z_t|z_{t+1}^*)\) (teal) are both narrow Gaussians, while the marginal \(q(z_t)\) (gray) is broad. The reverse conditional is tractable because it depends on a single known value \(z_{t+1}^*\), making each denoising step a small, learnable correction. Source: Prince, <em>Understanding Deep Learning</em>, CC BY-NC-ND. Used without modification.</div>
-</div>
-
-### Noise Prediction Parameterization
-
-The reverse process requires choosing what quantity the neural network should predict.
-Three equivalent parameterizations exist: the network can predict the clean data $$x_0$$, the posterior mean $$\mu_\theta$$, or the noise $$\epsilon$$.
-Ho et al. (2020) found that predicting the noise leads to the simplest and most stable training.
-
-Rather than predicting the mean $$\mu_\theta$$ directly, we train the network to predict the *noise* $$\epsilon$$ that was added to obtain $$x_t$$ from $$x_0$$.
-Once the network predicts $$\epsilon_\theta(x_t, t) \in \mathbb{R}^D$$, we can recover the mean via:
-
-$$\mu_\theta(x_t, t) = \frac{1}{\sqrt{\alpha_t}} \left( x_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}}\, \epsilon_\theta(x_t, t) \right)$$
-
-### The Simple Training Objective
-
-The training loss is the mean squared error between the true noise and the predicted noise, averaged over random timesteps and random noise draws:
-
-$$\mathcal{L}_{\text{simple}} = \mathbb{E}_{t,\, x_0,\, \epsilon}\!\left[\lVert \epsilon - \epsilon_\theta(x_t, t) \rVert^2\right]$$
-
-Despite their different intuitions, diffusion models and VAEs are mathematically closer than they appear.
-A diffusion model can be viewed as a **hierarchical VAE** with $$T$$ latent layers $$x_1, x_2, \ldots, x_T$$, where the "encoder" (forward process) is fixed rather than learned, and each layer has the same dimensionality as the data.
-The training objective is in fact an ELBO, decomposed into $$T$$ per-timestep KL divergence terms instead of the single KL term in a standard VAE.
-Because both the forward posterior $$q(x_{t-1} \mid x_t, x_0)$$ and the reverse model $$p_\theta(x_{t-1} \mid x_t)$$ are Gaussian, each KL term reduces to an MSE between their means.
-Ho et al. <sup id="cite-a"><a href="#ref-a">[a]</a></sup> showed that dropping the per-timestep weighting coefficients yields $$\mathcal{L}_{\text{simple}}$$, which works better in practice.
-For the full derivation, see Luo (2022) [^elbo-derivation].
-
-<div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/luo_hvae.png' | relative_url }}" alt="Hierarchical VAE graphical model with T latent layers forming a Markov chain">
-    <div class="caption mt-1"><strong>Diffusion as a hierarchical VAE.</strong> A Markovian Hierarchical VAE with \(T\) latent layers. The generative (reverse) process \(p_\theta\) flows top-down along the chain; the inference (forward) process \(q\) flows bottom-up. A diffusion model is this structure with the forward process fixed to Gaussian noise addition and all latent layers sharing the data dimensionality. Source: Luo, <em>Understanding Diffusion Models: A Unified Perspective</em> (2022).</div>
-</div>
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/luo_elbo_denoising.png' | relative_url }}" alt="ELBO decomposition: each timestep matches the learned denoising step to a tractable ground-truth posterior">
-    <div class="caption mt-1"><strong>Per-timestep ELBO decomposition.</strong> At each step, the learned reverse distribution \(p_\theta(x_{t-1}|x_t)\) (green) is trained to match the tractable ground-truth denoising posterior \(q(x_{t-1}|x_t, x_0)\) (pink). Because both are Gaussians with matched variance, the KL divergence between them reduces to an MSE between means --- which further simplifies to the noise-prediction loss. Source: Luo, <em>Understanding Diffusion Models: A Unified Perspective</em> (2022).</div>
-</div>
-
-[^elbo-derivation]: Luo, C. (2022). "Understanding Diffusion Models: A Unified Perspective." *arXiv preprint arXiv:2208.11970*. Sections 3–4 derive the diffusion ELBO from the hierarchical VAE perspective.
-
-The training procedure for a single batch is:
-
-1. Draw a batch of clean data $$x_0$$.
-2. Sample random timesteps $$t \sim \mathrm{Uniform}\{1, \ldots, T\}$$.
-3. Sample random noise $$\epsilon \sim \mathcal{N}(0, I)$$.
-4. Compute noisy data $$x_t = \sqrt{\bar{\alpha}_t}\, x_0 + \sqrt{1 - \bar{\alpha}_t}\, \epsilon$$.
-5. Predict $$\hat{\epsilon} = \epsilon_\theta(x_t, t)$$.
-6. Minimize $$\lVert \epsilon - \hat{\epsilon} \rVert^2$$.
+The encoder (24D → 2D latent), reparameterization trick, and decoder (2D → 24D) form a single module. Training minimizes the $$\beta$$-weighted ELBO with $$\beta = 0.01$$, MSE reconstruction, and Adam optimization over 150 epochs.
 
 ```python
-def diffusion_training_loss(model: nn.Module, x0: torch.Tensor,
-                            schedule: DiffusionSchedule) -> torch.Tensor:
-    """Compute the simplified diffusion training loss (noise prediction MSE).
-
-    Args:
-        model: noise prediction network, takes (x_t, t) -> predicted noise
-        x0: clean data batch, shape [batch, ...]
-        schedule: DiffusionSchedule with precomputed quantities
-    """
-    batch_size = x0.size(0)
-
-    # Step 1: sample random timesteps for each example
-    t = torch.randint(0, schedule.T, (batch_size,), device=x0.device)
-
-    # Step 2: sample Gaussian noise
-    noise = torch.randn_like(x0)
-
-    # Step 3: compute noisy version x_t
-    x_t = schedule.add_noise(x0, t, noise)
-
-    # Step 4: predict the noise
-    noise_pred = model(x_t, t)
-
-    # Step 5: MSE between true and predicted noise
-    return nn.functional.mse_loss(noise_pred, noise)
-```
-
-This objective has a deep connection to **denoising score matching**[^score].
-The score function $$\nabla_{x} \log p(x)$$ points in the direction of increasing data density.
-Predicting the noise $$\epsilon$$ is mathematically equivalent to estimating the score at timestep $$t$$, up to a scaling factor.
-This connection links diffusion models to the broader framework of score-based generative modeling (Song and Ermon, 2019).
-
-[^score]: The *score* of a distribution $$p(x)$$ is the gradient of its log-density, $$\nabla_x \log p(x)$$.  Score matching trains a network to approximate this gradient without knowing the normalizing constant of $$p$$.
-
-<div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/yangsong_score_contour.jpg' | relative_url }}" alt="Score function visualized as a vector field over a mixture of two Gaussians">
-    <div class="caption mt-1"><strong>The score function as a vector field.</strong> Contour plot of a mixture of two Gaussians, overlaid with the score \(\nabla_x \log p(x)\) at each point. Arrows point toward the modes (high-density regions). The denoising network implicitly estimates this vector field at each noise level. Source: Song, <em>Generative Modeling by Estimating Gradients of the Data Distribution</em> (2021).</div>
-</div>
-
----
-
-## 7. The Denoising Loop and Network Architecture
-
-### Generation by Iterative Denoising
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-05-generative-models_diagram_1.png' | relative_url }}" alt="Diffusion reverse process: iterative denoising from pure noise to clean protein structure over T timesteps">
-</div>
-
-Once the noise prediction network is trained, generation proceeds by simulating the reverse process.
-Starting from pure noise $$x_T \sim \mathcal{N}(0, I)$$, we apply the learned denoising step $$T$$ times:
-
-```python
-@torch.no_grad()
-def ddpm_sample(model: nn.Module, schedule: DiffusionSchedule,
-                shape: tuple, device: str = "cpu") -> torch.Tensor:
-    """Generate samples via DDPM reverse process.
-
-    Args:
-        model: trained noise prediction network
-        schedule: DiffusionSchedule with precomputed quantities
-        shape: desired output shape, e.g. (n_samples, n_residues, 3)
-        device: torch device
-    """
-    # Start from pure Gaussian noise
-    x = torch.randn(shape, device=device)
-
-    for t in reversed(range(schedule.T)):
-        t_batch = torch.full((shape[0],), t, device=device, dtype=torch.long)
-
-        # Predict the noise component
-        noise_pred = model(x, t_batch)
-
-        # Retrieve schedule quantities for this timestep
-        alpha = schedule.alphas[t]
-        alpha_bar = schedule.alpha_bars[t]
-        beta = schedule.betas[t]
-
-        # Compute the predicted mean of x_{t-1}
-        mean = (1.0 / torch.sqrt(alpha)) * (
-            x - (beta / torch.sqrt(1.0 - alpha_bar)) * noise_pred
-        )
-
-        # Add stochastic noise for all steps except the final one
-        if t > 0:
-            noise = torch.randn_like(x)
-            x = mean + torch.sqrt(beta) * noise
-        else:
-            x = mean
-
-    return x
-```
-
-At each step except the last ($$t = 0$$), we inject a small amount of fresh noise.
-This stochasticity ensures diversity: different initial noise samples produce different outputs, and even the same initial noise can yield slightly different results due to the injected randomness during denoising.
-
-### Timestep Conditioning
-
-The noise prediction network must know *which* timestep it is operating at.
-A heavily corrupted input ($$t$$ near $$T$$) requires aggressive denoising, while a lightly corrupted input ($$t$$ near 0) needs only gentle refinement.
-The standard approach borrows **sinusoidal position embeddings** from the transformer literature to encode the scalar timestep $$t$$ as a high-dimensional vector:
-
-```python
-import math
-
-class SinusoidalTimestepEmbedding(nn.Module):
-    """Encodes scalar timestep t into a d-dimensional vector.
-
-    Uses the same sinusoidal scheme as transformer positional encodings.
-    """
-
-    def __init__(self, dim: int):
+class PolymerVAE(nn.Module):
+    def __init__(self, input_dim=24, hidden_dim=256, latent_dim=2):
         super().__init__()
-        self.dim = dim
+        self.encoder = PolymerEncoder(input_dim, hidden_dim, latent_dim)
+        self.decoder = PolymerDecoder(latent_dim, hidden_dim, input_dim)
 
-    def forward(self, t: torch.Tensor) -> torch.Tensor:
-        device = t.device
-        half = self.dim // 2
-        freqs = torch.exp(
-            -math.log(10000.0) * torch.arange(half, device=device) / half
-        )
-        args = t[:, None].float() * freqs[None, :]
-        return torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
+    def reparameterize(self, mu, sigma):
+        eps = torch.randn_like(sigma)
+        return mu + sigma * eps
+
+    def forward(self, x):
+        mu, sigma = self.encoder(x)
+        z = self.reparameterize(mu, sigma)
+        x_recon = self.decoder(z)
+        return x_recon, mu, sigma
 ```
+<div class="caption mt-1">The full polymer VAE: encoder produces (μ, σ), reparameterization trick samples z = μ + σε, decoder reconstructs coordinates. About 250K parameters total.</div>
 
-This embedding is then injected into the denoising network—for example, by adding it to intermediate feature maps or concatenating it with the input.
+```python
+def vae_loss(x, x_recon, mu, sigma, beta=0.01):
+    recon = nn.functional.mse_loss(x_recon, x)
+    kl = -0.5 * torch.mean(1 + 2 * torch.log(sigma + 1e-8) - mu**2 - sigma**2)
+    return recon + beta * kl
+```
+<div class="caption mt-1">Loss function: MSE reconstruction + β·KL. With β = 0.01, reconstruction dominates — the model must get coordinates right before organizing the latent space.</div>
 
-### Architecture Choices for Proteins
+### Results
 
-The choice of denoising network architecture depends on the data representation.
+After training, the 2D latent space reveals physically meaningful structure. Encoding all training conformations and coloring them by the **radius of gyration** ($$R_g$$ — a measure of how compact or extended the polymer is) produces a smooth gradient across latent space. Compact polymers cluster in one region, extended chains in another — without any $$R_g$$ labels during training.
 
-U-Nets dominate image generation (Stable Diffusion) and medical image segmentation thanks to their multi-scale skip connections.  Transformers dominate text generation thanks to their ability to capture long-range dependencies.  For proteins, the choice depends on the data representation:
+**Latent-space interpolation** confirms that the space is smooth: linearly interpolating between two latent codes produces a sequence of physically plausible intermediate conformations. Every point along the path decodes to a valid polymer shape.
 
-For **spatial data** (images, 3D point clouds, protein backbone coordinates), U-Net architectures with skip connections are common.
-The encoder half progressively reduces spatial resolution, capturing long-range context, while the decoder half restores resolution.
-Skip connections preserve fine-grained spatial details that would otherwise be lost during downsampling.
+**Property optimization** exploits this structure.
+To find the most compact polymer the model can generate, perform gradient descent on $$R_g$$ directly in latent space: start from a random $$z$$, compute $$R_g$$ of the decoded conformation, backpropagate the gradient to $$z$$, and update.
+After ~200 steps, the optimized polymer is more compact than anything in the training set — the VAE has extrapolated beyond the observed data.
+This is the same principle behind protein design: encode known proteins, navigate the latent space toward desired properties (binding affinity, stability, solubility), and decode novel sequences.
 
-For **sequential data** (text, protein sequences), transformer architectures work well because attention allows every position to interact with every other position, capturing long-range dependencies (as discussed in Lecture 1).
-
----
-
-## 8. VAEs vs. Diffusion: Choosing the Right Tool
-
-Both VAEs and diffusion models are principled approaches to learning the distribution over proteins.
-They differ in architecture, training, generation speed, and sample quality.
-The table below summarizes the key trade-offs.
-
-| Aspect | VAE | Diffusion |
-|--------|-----|-----------|
-| **Latent space** | Low-dimensional, explicitly structured | Same dimensionality as data; no explicit latent space |
-| **Training** | Single forward pass per example | Multiple noise levels sampled per example |
-| **Sampling speed** | Fast—one decoder pass | Slow—hundreds to thousands of denoising steps |
-| **Sample quality** | Good; can be blurry or mode-averaged | State-of-the-art; captures fine-grained detail |
-| **Diversity** | High | Very high |
-| **Controllability** | Latent-space manipulation, conditional decoding | Classifier guidance, classifier-free guidance |
-| **Interpretability** | Latent dimensions can align with meaningful properties | Less interpretable |
-
-The practical upshot: VAEs win on speed (milliseconds per sample) and latent-space interpretability, making them the default for large-scale screening; diffusion wins on sample quality, making it the default for targeted design of physically plausible backbones.
-Latent diffusion models (Rombach et al., 2022) bridge the gap by running diffusion in a VAE's compressed latent space, trading some quality for much faster generation.
-
----
-
-## 9. Conditional Generation
-
-Both VAEs and diffusion models can be extended to **conditional generation**—steering the model toward data with specific desired properties.  Text-to-image models like DALL-E and Stable Diffusion generate images conditioned on text prompts; class-conditional ImageNet models generate images of specific object categories.  Two general strategies have emerged for diffusion models.
-
-**Classifier guidance.** Dhariwal and Nichol (2021) train a separate classifier that operates on noisy inputs.  At each denoising step, the gradient of the classifier's log-probability with respect to the noisy input is added to the predicted denoising direction, pushing the sample toward regions associated with the desired class.
-
-**Classifier-free guidance** (Ho and Salimans, 2022) eliminates the need for a separate classifier.
-During training, the conditioning signal is randomly dropped with some probability, so the model learns both conditional and unconditional generation.
-At inference time, the two predictions are blended:
-
-$$\hat{\epsilon} = \epsilon_\theta(x_t, t, \varnothing) + s \cdot \bigl(\epsilon_\theta(x_t, t, c) - \epsilon_\theta(x_t, t, \varnothing)\bigr)$$
-
-where $$c$$ is the condition, $$\varnothing$$ denotes the null condition, and $$s > 1$$ amplifies the effect of conditioning.
-This approach is simpler and often more effective than classifier guidance.  Stable Diffusion uses the guidance scale $$s$$ to trade prompt adherence against visual diversity.
+The full code — data loading, preprocessing, model, training, visualization, and optimization — is in the [nano-polymer-vae]({{ '/lectures/18-nano-polymer-vae/' | relative_url }}) walkthrough. The companion [Lecture 4]({{ '/lectures/17-diffusion/' | relative_url }}) applies a diffusion model to the same polymer data, and the [nano-polymer-diffusion]({{ '/lectures/19-nano-polymer-diffusion/' | relative_url }}) walkthrough enables a direct side-by-side comparison.
 
 ---
 
 ## Key Takeaways
 
-This lecture covered two foundational frameworks for generative modeling.
-
 **Variational autoencoders** learn a probabilistic, low-dimensional latent space.
 The ELBO training objective balances reconstruction fidelity against latent-space regularity (via the KL divergence).
 The reparameterization trick makes end-to-end training through stochastic sampling possible.
-Generation is fast—a single decoder pass—and the structured latent space enables interpolation, clustering, and property-guided optimization.
-
-**Diffusion models** learn to reverse a gradual noise-corruption process.
-The forward process has a closed-form expression for any timestep, enabling efficient training.
-The reverse process is learned by predicting the noise added at each step.
-Generation requires many sequential denoising steps but produces state-of-the-art sample quality.
-
-**Conditional generation** steers either framework toward desired properties via classifier guidance or classifier-free guidance.
-
-The choice between VAEs and diffusion depends on the application: VAEs for speed and interpretability, diffusion for sample quality, latent diffusion for a middle ground.
+Generation is fast---a single decoder pass---and the structured latent space enables interpolation, clustering, and property-guided optimization.
+The bead-spring polymer case study demonstrates all of these capabilities on a tractable 2D system: a 24-dimensional coordinate space compressed to 2 latent dimensions, with physically meaningful latent structure and gradient-based property optimization.
 
 ---
 
 ## Further Reading
 
 - Lilian Weng, ["From Autoencoder to Beta-VAE"](https://lilianweng.github.io/posts/2018-08-12-vae/) — an accessible walkthrough of variational autoencoders, from vanilla AE to disentangled representations.
-- Lilian Weng, ["What are Diffusion Models?"](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) — a thorough introduction to diffusion models covering the forward process, reverse denoising, and connections to score matching.
-- Yang Song, ["Generative Modeling by Estimating Gradients of the Data Distribution"](https://yang-song.net/blog/2021/score/) — score functions, noise-perturbed distributions, Langevin sampling, and SDEs for diffusion, by the score-matching pioneer.
-- Calvin Luo, ["Understanding Diffusion Models: A Unified Perspective"](https://calvinyluo.com/2022/08/26/diffusion-tutorial.html) — derives diffusion from hierarchical VAEs and connects the ELBO to the score-based view via Tweedie's formula.
-
-## References
-
-<p id="ref-a"><a href="#cite-a">[a]</a> Ho, J., Jain, A., and Abbeel, P. (2020). "Denoising Diffusion Probabilistic Models." <em>Advances in Neural Information Processing Systems (NeurIPS)</em>.</p>
+- Andrew White, ["Variational Autoencoder"](https://dmol.pub/dl/VAE.html) — the bead-spring polymer VAE example in JAX, from *Deep Learning for Molecules and Materials*.
 
 ---
