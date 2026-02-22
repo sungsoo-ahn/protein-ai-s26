@@ -19,21 +19,22 @@ collapse_code: true
 ## Introduction
 
 Time to build something real.
-This note is a single, end-to-end project: predicting whether a protein will be soluble when expressed in *E. coli*.
+This note is a single, end-to-end project: predicting whether a protein will be soluble when expressed in *E. coli*, using the solubility dataset from White et al.'s [*Deep Learning for Molecules and Materials*](https://dmol.pub/) (dmol.pub).
 
-The model is an MLP that takes flattened one-hot encoded sequences --- the same representation from Preliminary Note 2 --- and outputs a solubility prediction.
+The model is an MLP that takes hand-crafted sequence features --- amino acid frequencies and physicochemical properties --- and outputs a solubility prediction.
 The architecture is deliberately simple so we can focus on the problems that arise *around* the model: misleading evaluation, class imbalance, and overfitting.
 Each section follows the same arc: *observe a problem → understand why it happens → introduce a technique that addresses it → show the improvement*.
 
 By the end, you will have a working solubility predictor and a practical toolkit for diagnosing and fixing the most common training problems in protein machine learning.
 The main lectures introduce more powerful architectures (CNNs, transformers, GNNs) and additional input modalities (3D structure, learned embeddings).
+A companion [code walkthrough]({{ '/lectures/15-nano-solubility/' | relative_url }}) builds a convolutional variant of this classifier --- learned embeddings and 1D convolutions that exploit sequential structure.
 
 ### Roadmap
 
 | Section | Topic | What You Will Learn |
 |---|---|---|
 | 1 | The Solubility Prediction Problem | Why this problem matters and what makes it amenable to ML |
-| 2 | The Model: An MLP on Sequence Features | Building a solubility predictor from flattened one-hot encodings |
+| 2 | The Model: An MLP on Sequence Features | Building a solubility predictor from hand-crafted sequence features |
 | 3 | Data Preparation | Dataset/DataLoader setup, train/val/test splitting |
 | 4 | Training and Evaluation | Training script, evaluation metrics beyond accuracy, precision-recall |
 | 5 | Evaluating Properly: Sequence-Identity Splits | Why random splits overestimate performance, and how to fix it |
@@ -59,6 +60,8 @@ A computational model that predicts solubility from sequence alone can guide con
 
 Solubility is influenced by sequence-level properties: amino acid composition, charge distribution, hydrophobicity patterns, and the presence of certain sequence motifs.
 These patterns are learnable from data.
+We use a curated dataset of 18,453 *E. coli* proteins from the [dmol.pub](https://dmol.pub/dl/layers.html) textbook: each protein is a sequence of amino acids (tokenized as integers 1--20, with 0 for padding), labeled soluble or insoluble.
+The dataset is roughly balanced --- 52% soluble, 48% insoluble.
 
 This is a **binary classification** task: given a protein sequence, predict whether it will be soluble (1) or insoluble (0).
 We use the tools from Preliminary Note 3: cross-entropy loss, data loading with `DataLoader`, and the training loop.
@@ -67,10 +70,35 @@ We use the tools from Preliminary Note 3: cross-entropy loss, data loading with 
 
 ## 2. The Model: An MLP on Sequence Features
 
-The input representation is the flattened one-hot encoding from Preliminary Note 2: each protein of length $$L$$ becomes a matrix of shape $$(L, 20)$$, padded to a fixed maximum length $$L_{\max}$$, then flattened to a single vector of dimension $$L_{\max} \times 20$$.
-This discards the sequential ordering --- the MLP treats position 1 and position 100 as unrelated inputs --- but it is enough to learn composition-level and position-level patterns that correlate with solubility.
+### Feature Engineering
 
-The architecture mirrors the `SolubilityPredictor` from Preliminary Note 2, with an additional hidden layer and dropout for regularization:
+Rather than feeding raw sequences to the model, we first compute a fixed-length feature vector that summarizes each protein's composition and physicochemical character.
+This is standard practice for MLP-based protein property prediction: the features encode domain knowledge about what influences solubility.
+
+Each protein produces a 24-dimensional vector:
+
+| Features | Dims | Description |
+|----------|------|-------------|
+| Amino acid frequencies | 20 | Fraction of each amino acid (A, C, D, ..., Y) |
+| Sequence length | 1 | Number of residues, normalized |
+| Mean hydrophobicity | 1 | Average Kyte-Doolittle score across all residues |
+| Net charge | 1 | (K + R + H $$-$$ D $$-$$ E) / length |
+| Fraction charged | 1 | (D + E + K + R) / length |
+
+Amino acid composition is the strongest single predictor of solubility.
+Insoluble proteins tend to have more hydrophobic residues (I, L, V, F) and fewer charged surface residues (D, E, K, R).
+The four global descriptors --- length, hydrophobicity, charge, and fraction charged --- add summary statistics that the MLP can use directly rather than having to reconstruct from the 20 frequencies.
+
+Notice what the featurizer does: it compresses a variable-length sequence into a fixed-length vector.
+This is not optional --- an MLP has a fixed number of input neurons, so variable-length sequences *must* be reduced to a fixed size before the model can process them.
+Proteins in this dataset range from tens to hundreds of residues; in nature, they span from short peptides (~30 residues) to titin (34,350 residues).
+Our featurizer handles this by computing *aggregate statistics* --- frequencies, means, ratios --- that are well-defined regardless of length.
+The price: all positional information is lost.
+A protein with a hydrophobic N-terminus and a charged C-terminus produces the same feature vector as one with the opposite arrangement.
+
+Composition alone is a surprisingly strong baseline for solubility, but the companion [code walkthrough]({{ '/lectures/15-nano-solubility/' | relative_url }}) shows how convolutional networks can exploit positional patterns for better performance.
+
+### The Architecture
 
 ```python
 import torch
@@ -78,15 +106,15 @@ import torch.nn as nn
 
 class SolubilityMLP(nn.Module):
     """
-    MLP for predicting protein solubility from flattened one-hot sequences.
+    MLP for predicting protein solubility from hand-crafted features.
 
     Architecture:
-    1. Input: flattened padded one-hot vector (max_len × 20)
+    1. Input: 24-dim feature vector (AA frequencies + physicochemical)
     2. Three hidden layers with ReLU activation and dropout
     3. Linear output: predict soluble (1) vs. insoluble (0)
     """
 
-    def __init__(self, input_dim=2000, hidden_dim=128, num_classes=2):
+    def __init__(self, input_dim=24, hidden_dim=128, num_classes=2):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -102,23 +130,176 @@ class SolubilityMLP(nn.Module):
         )
 
     def forward(self, x):
-        # x shape: (batch, input_dim) — flattened padded one-hot
+        # x shape: (batch, 24) — feature vector
         return self.net(x)
 ```
-<div class="caption mt-1">With <code>max_len=100</code> and 20 amino acids, <code>input_dim=2000</code>. The three hidden layers (128 → 128 → 64) progressively compress the representation before the final classification layer.</div>
+<div class="caption mt-1">With 24 input features, the three hidden layers (128 → 128 → 64) progressively compress the representation before the final classification layer.</div>
 
-With $$L_{\max} = 100$$ and 20 amino acids, the input dimension is 2,000.
-The model has roughly 290,000 parameters --- large relative to typical protein dataset sizes, which is why regularization (dropout) and early stopping (Section 7) matter.
+The model has roughly 28,000 parameters --- small enough that it is unlikely to overfit severely on 18,000 training examples, especially with dropout.
+Compare this to a naive flattened one-hot approach ($$L_{\max} \times 20 = 2{,}000$$ input dimensions, ~290,000 parameters): hand-crafted features produce a ten times smaller model because the featurizer compresses the variable-length sequence into a fixed, compact representation *before* the model sees it.
 
-An MLP on flattened sequences has a clear limitation: it treats each input dimension independently, with no built-in notion of *locality*.
-A cluster of five hydrophobic residues in a row is a strong signal for a transmembrane helix (likely insoluble), but the MLP must learn this from data rather than having it built into the architecture.
-The main lectures introduce convolutional networks (which exploit sequential structure) and transformers (which learn long-range dependencies) to address this limitation.
+### From Counting to Convolutions
+
+The 20 amino acid frequencies capture *composition* --- what the protein is made of --- but not *arrangement*.
+A protein with 10% valine scattered evenly looks identical to one with all valines clustered in a single hydrophobic stretch.
+The clustered version is far more likely to aggregate.
+
+The natural fix: count not just single amino acids, but *pairs* of consecutive amino acids (dipeptides).
+"VV" (two valines in a row) is a different feature from "VD" (valine followed by aspartate).
+With 20 amino acids, there are $$20^2 = 400$$ possible dipeptides:
+
+```python
+def dipeptide_frequencies(tokens):
+    """Count all 400 dipeptide frequencies."""
+    seq = tokens[tokens > 0]
+    L = len(seq)
+    counts = np.zeros(400)
+    for i in range(L - 1):
+        pair = (seq[i] - 1) * 20 + (seq[i+1] - 1)
+        counts[pair] += 1
+    return counts / max(L - 1, 1)
+```
+<div class="caption mt-1">Each dipeptide maps to one of 400 bins. Most bins will be zero for any given protein — the feature vector is sparse.</div>
+
+This gives 400 features that capture local context.
+But why stop at pairs?
+
+| Segment length $$k$$ | Features ($$20^k$$) | What it captures |
+|---|---|---|
+| 1 | 20 | Amino acid composition |
+| 2 | 400 | Dipeptide patterns |
+| 3 | 8,000 | Tripeptide motifs |
+| 4 | 160,000 | Short sequence motifs |
+| 5 | 3,200,000 | Approaching full motif-level patterns |
+
+The feature space grows as $$20^k$$ --- exponential in the segment length.
+Most of these $$k$$-mers never appear in any protein, so the feature vectors are extremely sparse.
+With 18,000 training samples and 8,000 features ($$k = 3$$), the model has more dimensions than data points.
+This is the **curse of dimensionality**: the feature space grows much faster than the data can fill it.
+
+A 1D convolution solves exactly this problem.
+A convolutional filter with kernel size $$k$$ looks at the same $$k$$ consecutive residues as a $$k$$-mer --- but instead of enumerating all $$20^k$$ possible patterns and counting each one, it learns a *small number of useful detectors*.
+A CNN with 16 filters of kernel size 5 replaces 3.2 million possible 5-mer counts with just 16 learned patterns.
+An embedding layer further compresses each amino acid from a sparse categorical token to a dense vector, so the filter weights are small and the model generalizes well.
+
+The companion [code walkthrough]({{ '/lectures/15-nano-solubility/' | relative_url }}) builds exactly this: filters of size 5, 3, and 3 in successive layers, each acting as a learned $$k$$-mer detector at increasing effective receptive fields.
+**A 1D CNN is the learned, parameter-efficient generalization of $$k$$-mer frequency counting.**
+
+CNNs also handle variable-length input more gracefully than our featurizer: they process each position with the same shared filters, then max-pool the result into a fixed-size vector.
+No information is lost until the pooling step.
+But convolutions have their own limitation: **locality**.
+A filter of size 5 sees only 5 consecutive residues.
+Stacking three convolutional layers with pooling gives an effective receptive field of roughly 24 residues --- enough for local secondary structure elements, but not for interactions between distant parts of the chain.
+A disulfide bond between cysteines at positions 30 and 280 is critical for folding and solubility, but no convolutional filter can see both positions at once.
+
+To summarize where we stand:
+
+| Approach | Variable length | Positional info | Long-range interactions |
+|---|---|---|---|
+| Hand-crafted features (this note) | Aggregate to fixed vector | Lost entirely | No |
+| 1D CNN (companion walkthrough) | Pad + pool to fixed size | Preserved locally | Limited by receptive field |
+| Transformer (Lecture 1) | Native --- self-attention over any length | Preserved globally | Every position attends to every other |
+
+The main lectures introduce **transformers**, which solve both problems at once.
+Self-attention lets every residue attend to every other residue in a single layer, regardless of distance.
+The input can be any length --- no aggregation, no padding, no fixed receptive field.
+The cost is quadratic in sequence length ($$O(L^2)$$), but the payoff is that the model captures long-range dependencies that both hand-crafted features and CNNs miss.
 
 ---
 
 ## 3. Data Preparation
 
-Split the dataset into train/validation/test with `stratify` to maintain class balance, wrap the flattened feature tensors and labels in a `TensorDataset`, and create `DataLoader` objects with `shuffle=True` for training and `shuffle=False` for evaluation.
+### Loading the Dataset
+
+The dmol.pub solubility dataset is a single `.npz` file containing pre-tokenized protein sequences split into soluble ("positives") and insoluble ("negatives").
+Each sequence is an array of integers: 1--20 for the 20 amino acids, 0 for padding.
+
+```python
+import numpy as np
+import urllib.request
+
+urllib.request.urlretrieve(
+    "https://github.com/whitead/dmol-book/raw/main/data/solubility.npz",
+    "solubility.npz",
+)
+with np.load("solubility.npz") as data:
+    pos_data, neg_data = data["positives"], data["negatives"]
+
+print(f"Soluble: {pos_data.shape[0]}, Insoluble: {neg_data.shape[0]}")
+print(f"Sequence length (padded): {pos_data.shape[1]}")
+# Soluble: 9,667  Insoluble: 8,786  Sequence length: 200
+```
+
+### Feature Extraction
+
+Compute the 24-dimensional feature vector for each protein: amino acid frequencies, sequence length, mean hydrophobicity, net charge, and fraction of charged residues.
+
+```python
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+from sklearn.model_selection import train_test_split
+
+features = np.concatenate([pos_data, neg_data], axis=0)
+labels = np.concatenate([np.ones(len(pos_data)), np.zeros(len(neg_data))])
+
+# Kyte-Doolittle hydrophobicity scale (alphabetical AA order, matching tokens 1-20)
+HYDROPHOBICITY = np.array([
+    1.8, 2.5, -3.5, -3.5, 2.8, -0.4, -3.2, 4.5, -3.9, 3.8,   # A C D E F G H I K L
+    1.9, -3.5, -1.6, -3.5, -4.5, -0.8, -0.7, 4.2, -0.9, -1.3, # M N P Q R S T V W Y
+])
+
+def featurize(tokens):
+    """Compute a 24-dim feature vector from an integer-tokenized protein."""
+    seq = tokens[tokens > 0]       # remove padding
+    L = len(seq)
+    if L == 0:
+        return np.zeros(24, dtype=np.float32)
+
+    counts = np.bincount(seq, minlength=21)[1:]  # 20 amino acid counts
+    freqs = counts / L
+
+    mean_hydro = freqs @ HYDROPHOBICITY
+
+    # Net charge: (K + R + H) - (D + E), per residue
+    # Alphabetical 0-indexed: D=2, E=3, H=6, K=8, R=14
+    net_charge = (counts[6] + counts[8] + counts[14]
+                  - counts[2] - counts[3]) / L
+
+    frac_charged = (counts[2] + counts[3] + counts[8] + counts[14]) / L
+
+    return np.concatenate([
+        freqs,             # 20: amino acid composition
+        [L / 1000],        #  1: normalized sequence length
+        [mean_hydro],      #  1: mean hydrophobicity
+        [net_charge],      #  1: net charge per residue
+        [frac_charged],    #  1: fraction charged
+    ]).astype(np.float32)
+
+X = torch.tensor(np.array([featurize(seq) for seq in features]))  # (N, 24)
+y = torch.tensor(labels, dtype=torch.long)
+```
+<div class="caption mt-1">Each protein becomes a 24-dimensional vector regardless of sequence length. The Kyte-Doolittle scale assigns positive values to hydrophobic residues (I = 4.5, V = 4.2) and negative values to hydrophilic ones (R = −4.5, K = −3.9).</div>
+
+### Train / Validation / Test Split
+
+Split with stratification to maintain the class balance in each subset:
+
+```python
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42
+)
+X_train, X_val, y_train, y_val = train_test_split(
+    X_train, y_train, test_size=0.125, stratify=y_train, random_state=42
+)
+
+train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=64, shuffle=True)
+val_loader = DataLoader(TensorDataset(X_val, y_val), batch_size=64)
+test_loader = DataLoader(TensorDataset(X_test, y_test), batch_size=64)
+
+print(f"Train: {len(X_train)}, Val: {len(X_val)}, Test: {len(X_test)}")
+# Train: 12,917  Val: 1,845  Test: 3,691
+```
+<div class="caption mt-1">An 70/10/20 split. Section 5 replaces this random split with a sequence-identity split for honest evaluation.</div>
 
 ---
 
@@ -160,7 +341,7 @@ def train_model(model, train_loader, val_loader, epochs=100, lr=1e-3):
     return model
 
 # Instantiate the model and inspect its size
-model = SolubilityMLP(input_dim=2000, hidden_dim=128, num_classes=2)
+model = SolubilityMLP(input_dim=24, hidden_dim=128, num_classes=2)
 n_params = sum(p.numel() for p in model.parameters())
 print(f"SolubilityMLP: {n_params:,} parameters")
 
@@ -488,7 +669,7 @@ Before declaring a model "trained," verify the following:
 
 1. **Solubility prediction** is a representative binary classification task that exercises every component of the ML pipeline: data preparation, model architecture, training, and evaluation.
 
-2. **An MLP on flattened one-hot sequences** is a simple but effective starting point. It treats each input dimension independently, which suffices for learning composition-level and position-level patterns. The main lectures introduce architectures (CNNs, transformers) that exploit sequential and structural information.
+2. **An MLP on hand-crafted sequence features** is a simple but effective starting point. Amino acid composition and physicochemical properties alone carry significant predictive signal for solubility. The main lectures introduce learned representations (embeddings, CNNs, transformers) that extract features directly from raw sequences.
 
 3. **Evaluation metrics** must go beyond accuracy. Precision, recall, F1, and AUC-ROC tell a more complete story, especially for imbalanced datasets.
 

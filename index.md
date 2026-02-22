@@ -12,7 +12,8 @@ description: "Spring 2026 · KAIST"
 
 **Prerequisites:** {{ course.prerequisites }}
 
-**Textbooks:** Our lecture notes are self-contained, but students who want deeper explanations of the deep learning foundations may find these two open-access textbooks helpful:
+**Textbooks:** Our lecture notes are self-contained, but students who want deeper background may find these open-access textbooks helpful:
+- White et al., [*Deep Learning for Molecules and Materials*](https://dmol.pub/index.html) — applied deep learning for molecular and materials science, with interactive examples.
 - Zhang et al., [*Dive into Deep Learning*](https://d2l.ai/) (CC BY-SA 4.0) — hands-on, code-first introduction to deep learning with PyTorch.
 - Prince, [*Understanding Deep Learning*](https://udlbook.github.io/udlbook/) (CC BY-NC-ND) — conceptual and mathematical treatment with excellent figures.
 
