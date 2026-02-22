@@ -6,7 +6,7 @@ description: "How message-passing neural networks solve the inverse folding prob
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 6
+lecture_number: 8
 preliminary: false
 toc:
   sidebar: left
@@ -14,7 +14,7 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 6 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. The lecture builds on concepts from Lecture 4 (AlphaFold) and Lecture 5 (RFDiffusion). Familiarity with graph neural networks (Lecture 1) and generative models (Lecture 2) is assumed throughout.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 8 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. The lecture builds on concepts from Lecture 6 (AlphaFold) and Lecture 7 (RFDiffusion). Familiarity with graph neural networks (Lecture 2) and generative models (Lectures 3–4) is assumed throughout.</em></p>
 
 ## Introduction
 
@@ -55,7 +55,7 @@ This lecture covers the full ProteinMPNN system: how it represents protein struc
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_0.png' | relative_url }}" alt="Forward folding versus inverse folding: forward folding maps one sequence to one structure via AlphaFold, while inverse folding maps one structure to multiple candidate sequences via ProteinMPNN">
 </div>
 
-In Lecture 4, we studied **forward folding**: given a sequence of amino acids, predict the three-dimensional structure.
+In Lecture 6, we studied **forward folding**: given a sequence of amino acids, predict the three-dimensional structure.
 AlphaFold solves this problem with near-experimental accuracy.
 The forward direction mirrors what happens in biology---DNA encodes a protein sequence, and physics determines how that sequence folds.
 
@@ -90,7 +90,7 @@ Human hemoglobin and fish hemoglobin perform the same oxygen-carrying function a
 Or consider the immunoglobulin fold---this basic structural motif appears in thousands of different antibody sequences across the immune system, each with unique binding specificity encoded in variable loops but sharing the same underlying architecture.
 
 This sequence tolerance exists because not every amino acid position contributes equally to structural stability.
-Some positions sit in the hydrophobic core (see Lecture 3), where the main requirement is "something nonpolar"---valine, leucine, or isoleucine might all work equally well.
+Some positions sit in the hydrophobic core (see Lecture 5), where the main requirement is "something nonpolar"---valine, leucine, or isoleucine might all work equally well.
 Other positions face the solvent and can tolerate almost any hydrophilic residue.
 Only a subset of positions---those involved in specific hydrogen bonds, salt bridges, or tight packing interactions---are tightly constrained.
 
@@ -118,7 +118,7 @@ Rather than outputting a single "best" sequence, the model provides probabilitie
 Inverse folding has become one of the most practically important tools in computational protein design for four reasons.
 
 **Completing the design pipeline.**
-Backbone generation methods like RFDiffusion (Lecture 5) produce three-dimensional coordinates, but these are not directly manufacturable.
+Backbone generation methods like RFDiffusion (Lecture 7) produce three-dimensional coordinates, but these are not directly manufacturable.
 Inverse folding provides the missing link, converting geometric designs into genetic sequences that can be ordered as synthetic DNA and expressed in cells.
 
 **Sequence optimization.**
@@ -255,7 +255,7 @@ def rbf_encode(distances, num_rbf=16, max_dist=20.0):
 Each residue has a natural local coordinate system defined by its three backbone atoms: N, $$\text{C}_\alpha$$, and C.
 These three atoms define a plane, and from that plane we can construct an orthonormal frame[^frame]:
 
-[^frame]: This is sometimes called a **residue frame** or **backbone frame**. The same idea appears in AlphaFold's Invariant Point Attention (Lecture 4), where each residue carries a rigid-body frame $$(R_i, \mathbf{t}_i)$$.
+[^frame]: This is sometimes called a **residue frame** or **backbone frame**. The same idea appears in AlphaFold's Invariant Point Attention (Lecture 6), where each residue carries a rigid-body frame $$(R_i, \mathbf{t}_i)$$.
 
 - The **x-axis** points from $$\text{C}_\alpha$$ toward C.
 - The **z-axis** is perpendicular to the N-$$\text{C}_\alpha$$-C plane (computed via a cross product).
@@ -309,7 +309,7 @@ Rather than learning from scratch what an "alpha helix" or "beta sheet" looks li
 With the graph constructed and edge features computed, the **structure encoder** integrates information across the protein.
 Its mechanism is **message passing**---a paradigm from graph neural networks where each node iteratively gathers information from its neighbors[^gnn-ref].
 
-[^gnn-ref]: For a review of message passing neural networks, see Gilmer et al. (2017), "Neural Message Passing for Quantum Chemistry," *ICML*. We also covered the basics in Lecture 1 (Transformers and GNNs).
+[^gnn-ref]: For a review of message passing neural networks, see Gilmer et al. (2017), "Neural Message Passing for Quantum Chemistry," *ICML*. We also covered the basics in Lecture 2 (GNNs).
 
 ### How Message Passing Works
 
@@ -807,7 +807,7 @@ The modern computational protein design workflow chains three models together, e
 ### Step 1: Backbone Generation with RFDiffusion
 
 The pipeline begins with a design specification: a binder to a specific epitope, a symmetric assembly, or an enzyme scaffold with catalytic residues at defined positions.
-**RFDiffusion** (Lecture 5) takes this specification and generates diverse backbone structures---sets of $$(\text{N}, \text{C}_\alpha, \text{C}, \text{O})$$ coordinates for each residue---that satisfy the specification.
+**RFDiffusion** (Lecture 7) takes this specification and generates diverse backbone structures---sets of $$(\text{N}, \text{C}_\alpha, \text{C}, \text{O})$$ coordinates for each residue---that satisfy the specification.
 
 At this stage, the output is purely geometric.
 There are no amino acid identities, only a shape.
@@ -824,7 +824,7 @@ Practical recommendations:
 ### Step 3: Validation with AlphaFold or ESMFold
 
 The key question is: will the designed sequence actually fold into the intended backbone?
-To answer this, we run the designed sequence through a **structure prediction** model---AlphaFold2 (Lecture 4) or ESMFold---and compare the predicted structure to the design target.
+To answer this, we run the designed sequence through a **structure prediction** model---AlphaFold2 (Lecture 6) or ESMFold---and compare the predicted structure to the design target.
 
 The primary metric is the **TM-score**[^tmscore], which measures global structural similarity on a scale from 0 (unrelated) to 1 (identical).
 A TM-score above 0.5 generally indicates that two structures share the same fold; designs with TM-scores above 0.8 are considered high-confidence matches.

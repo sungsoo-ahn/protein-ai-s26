@@ -6,7 +6,7 @@ description: "Build AlphaFold2 from scratch in ~650 lines of PyTorch — Pairfor
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 8
+lecture_number: 10
 preliminary: false
 toc:
   sidebar: left
@@ -59,7 +59,35 @@ out = torch.einsum("bikc,bjkc->bijc", left, right)
 out = torch.einsum("bkic,bkjc->bijc", left, right)
 ```
 
-This is the mechanism that lets the pair representation reason about spatial consistency. After 4 blocks, the pair representation encodes a rich map of which residues should be near each other.
+This is the mechanism that lets the pair representation reason about spatial consistency.
+
+**Triangular attention** is the other half of the pair update. Where multiplicative updates aggregate via direct outer products, triangular attention uses *softmax-weighted* aggregation -- standard attention, but applied over rows or columns of the pair matrix with a bias from the third-party residue.
+
+"Starting node" triangular attention: for a fixed row $$i$$, attend over columns $$j$$ and $$k$$ of the pair matrix, with a bias from `pair[i, k]`. This lets the pair representation ask: "given what I know about residue i's relationship to k, how should I update i's relationship to j?" "Ending node" does the same but transposes first, attending over rows instead.
+
+```python
+# Triangular attention (starting node): attend over columns for each row
+q = self.to_q(z).view(B, L, L, n_heads, head_dim)  # [B, i, j, H, d]
+k = self.to_k(z).view(B, L, L, n_heads, head_dim)
+v = self.to_v(z).view(B, L, L, n_heads, head_dim)
+attn = torch.einsum("bijhd,bikhd->bhijk", q, k) / sqrt(head_dim)
+attn = attn + self.bias_proj(z).permute(0,3,1,2).unsqueeze(2)  # pair bias
+out = torch.einsum("bhijk,bikhd->bijhd", softmax(attn), v)
+```
+
+The contrast: multiplicative updates are cheaper (no softmax, just element-wise multiply and sum) and capture direct co-occurrence. Attention is more expressive (learned weighting) but more expensive. Each Pairformer block uses both -- multiplicative updates first, then attention -- so the pair representation benefits from both aggregation strategies.
+
+After 4 blocks, the pair representation encodes a rich map of which residues should be near each other.
+
+**Pair-biased attention on the single representation.** After updating the pair matrix, each Pairformer block updates the per-residue single representation using self-attention with an additive bias from the pair representation. Standard self-attention computes $$\text{softmax}(QK^T / \sqrt{d_k})$$. Pair-biased attention adds one more term to the logits:
+
+```python
+attn = torch.einsum("bihd,bjhd->bhij", q, k) / sqrt(head_dim)
+attn = attn + self.pair_bias(pair).permute(0, 3, 1, 2)  # [B, H, L, L]
+attn = torch.softmax(attn, dim=-1)
+```
+
+The `pair_bias` projection maps each pair vector `[c_z]` to `[n_heads]` scalar biases -- one per attention head. This injects pairwise geometric information into the per-residue features: if the pair representation says residues i and j are close in 3D, the bias boosts attention between them, so residue i's representation absorbs more information from residue j. The output is gated (`sigmoid(gate) * out`) before the residual connection.
 
 ### Stage 2: SE(3) Diffusion
 
@@ -89,7 +117,18 @@ The Rodrigues formula (`axis_angle_to_rotation_matrix`) turns an axis-angle vect
 
 ## The Denoiser
 
-The diffusion module takes noisy frames, a timestep, and the Pairformer outputs, and predicts clean frames. It flattens each frame into a 12-dimensional vector (9 from the rotation matrix + 3 from the translation), projects it to dimension 256, adds the single representation, conditions on time via adaptive layer norm, and runs 4 transformer blocks with pair bias. The output is a 6-dimensional correction per residue (3 axis-angle + 3 translation) that gets composed onto the noisy frame.
+The diffusion module takes noisy frames, a timestep, and the Pairformer outputs, and predicts clean frames. It flattens each frame into a 12-dimensional vector (9 from the rotation matrix + 3 from the translation), projects it to dimension 256, adds the single representation, and runs 4 transformer blocks with pair bias. The output is a 6-dimensional correction per residue (3 axis-angle + 3 translation) that gets composed onto the noisy frame.
+
+**Adaptive LayerNorm (AdaLN)** is how the denoiser conditions on the noise level. The timestep $$t$$ gets mapped through a sinusoidal embedding and an MLP to produce a conditioning vector. Each AdaLN layer uses this vector to predict per-channel scale and shift parameters:
+
+```python
+class AdaLN(nn.Module):
+    def forward(self, x, cond):
+        scale, shift = self.proj(cond).chunk(2, dim=-1)  # cond: [B, dim]
+        return self.ln(x) * (1 + scale) + shift
+```
+
+Standard LayerNorm normalizes to zero mean and unit variance. AdaLN re-scales and re-shifts with *learned, timestep-dependent* parameters. At high noise levels ($$t \approx 1$$), the model needs to make bold corrections -- AdaLN can amplify certain features. At low noise levels ($$t \approx 0$$), fine adjustments suffice -- AdaLN can dampen them. The `proj` weights are initialized to zero so the model starts with standard LayerNorm behavior and gradually learns to modulate.
 
 ## FAPE Loss
 
@@ -103,6 +142,23 @@ error = ((pred_local - true_local) ** 2).sum(-1).add(1e-8).sqrt()
 ```
 
 FAPE is invariant to global rigid motion -- you could rotate the entire predicted structure and the loss would not change. This is essential because there is no "correct" global orientation.
+
+### Backbone reconstruction from frames
+
+The model predicts SE(3) frames, not atom coordinates directly. To get backbone atoms, `backbone_from_frames()` places N, CA, and C at fixed offsets in each frame's local coordinate system, then transforms to global coordinates:
+
+```python
+coords_CA = frames.trans                                # CA = frame origin
+c_local = torch.zeros_like(coords_CA)
+c_local[..., 0] = 1.523                                # C along local x-axis, 1.52 Å from CA
+coords_C = frames.apply(c_local)                        # rotate + translate to global
+n_local = torch.zeros_like(coords_CA)
+n_local[..., 0] = -1.458 * cos(pi - 1.937)             # N in local x-y plane
+n_local[..., 1] = 1.458 * sin(pi - 1.937)              # at ideal N-CA-C angle (~111°)
+coords_N = frames.apply(n_local)
+```
+
+The key geometry: CA sits at the frame's translation. C is placed 1.52 Å along the local x-axis. N is placed 1.46 Å from CA at an angle of ~111° from the C-CA bond, in the local x-y plane. These are ideal bond distances and angles from protein chemistry -- they barely vary across proteins. The frame's rotation matrix handles all the variation in backbone geometry.
 
 The total loss combines four terms: translation MSE (weight 1.0), rotation geodesic distance (weight 0.5), FAPE (weight 0.1), and pLDDT cross-entropy (weight 0.01). The direct frame losses provide stable gradients early in training; FAPE pushes for structural quality.
 

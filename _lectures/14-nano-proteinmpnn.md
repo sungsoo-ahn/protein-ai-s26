@@ -6,7 +6,7 @@ description: "Build ProteinMPNN from scratch in 448 lines of PyTorch — inverse
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 10
+lecture_number: 12
 preliminary: false
 toc:
   sidebar: left
@@ -46,12 +46,34 @@ The native sequence for 1CRN is `TTCCPSIVARSNFNVCRLPGTPEAICATYTGCIIIPGATCPGDYAN`
 
 The model never sees raw coordinates. Instead, we build a **k-nearest-neighbor graph** on the CA atoms (k=30), then compute rich features on the nodes and edges.
 
-**Node features** (15-dimensional per residue): We compute three backbone dihedral angles (phi, psi, omega) and encode each as sin/cos pairs (6 values), then flatten the 3x3 local coordinate frame built from N/CA/C into 9 values. That gives each residue a 15-dimensional feature vector capturing its local geometry.
+**Node features** (15-dimensional per residue): We compute three backbone dihedral angles (phi, psi, omega) and encode each as sin/cos pairs (6 values), then flatten the 3x3 local coordinate frame into 9 values. That gives each residue a 15-dimensional feature vector capturing its local geometry.
+
+The local frame uses Gram-Schmidt orthogonalization on the N/CA/C triangle -- the same procedure as in AlphaFold2 and RFDiffusion:
+
+```python
+x = normalize(C - CA)           # x-axis: CA → C
+z = normalize(cross(x, N - CA)) # z-axis: normal to backbone plane
+y = cross(z, x)                 # y-axis: completes right-handed frame
+R = stack([x, y, z], dim=-1)    # 3×3 rotation matrix
+```
+
+The 9 values are this 3×3 matrix flattened row-wise. Why include a local frame? It makes features **invariant to global rotation** -- the same residue geometry produces the same features regardless of how the protein is oriented in space. Rotate the entire protein by 90°, and every residue's local frame rotates with it, but the *relationship* between the frame and the backbone atoms stays identical.
 
 **Edge features** (324-dimensional per edge): For each edge connecting residue `i` to neighbor `j`, we compute:
 - **RBF distances** between all 4x4 pairs of backbone atoms (N-N, N-CA, N-C, N-O, CA-N, ...). Each distance is encoded with 16 Gaussian basis functions centered from 0 to 20 angstroms. That is 16 atom pairs times 16 RBFs = 256 features.
 - **Sequence separation** -- how far apart `i` and `j` are in the chain, clamped to [-32, 32] and one-hot encoded (65 features).
 - **Direction** -- the unit vector from `i` to `j` projected into `i`'s local coordinate frame (3 features).
+
+The direction projection deserves unpacking. The raw vector from CA_i to CA_j is in global coordinates and would change if you rotated the protein. Projecting it into residue i's local frame via $$R_i^T \cdot (\text{CA}_j - \text{CA}_i)$$ gives the direction *from residue i's perspective*:
+
+```python
+R_src = rots[src]  # local frame rotation matrices for source residues
+direction = coords_CA[dst] - trans[src]  # global direction vector
+direction_local = torch.einsum("eij,ej->ei", R_src.transpose(-1, -2), direction)
+direction_local = direction_local / (direction_local.norm(dim=-1, keepdim=True) + 1e-8)
+```
+
+If residue j is "above" residue i relative to i's backbone plane, that shows up as a positive z-component in local coordinates -- regardless of how the protein sits in the lab frame. Same principle as IPA's point transforms in AlphaFold2.
 
 Total: 256 + 65 + 3 = 324 edge features. This is the geometry the model works with.
 
@@ -68,7 +90,25 @@ agg = zeros(L, hidden_dim).index_add_(0, dst, messages)   # aggregate at nodes
 h = norm(h + update_mlp(cat([h, agg])))                    # update with residual
 ```
 
-**Decoder** (3 layers of causal attention): The decoder takes the amino acid tokens (during training, the ground truth; during design, sampled tokens), embeds them, and runs them through transformer-style layers. Each layer has causal self-attention (so position `i` can only attend to positions decoded before it), cross-attention to the encoder output, and a feed-forward network. The output projection gives logits over 20 amino acids at each position.
+**Decoder** (3 layers of causal attention): The decoder takes the amino acid tokens (during training, the ground truth; during design, sampled tokens), embeds them, and runs them through transformer-style layers. Each layer has three sublayers in order:
+
+1. **Causal self-attention** -- position i can only attend to positions decoded before it (determined by the random permutation mask). This prevents information leaking from future positions.
+2. **Cross-attention to the encoder output** -- queries come from the decoder's current token representations, keys and values from the encoder's structural embeddings. Unlike self-attention, cross-attention is *not* masked -- every position can attend to all encoder states because the structure is fully known. This is how the decoder reads structural information while generating sequence.
+3. **Feed-forward network** -- ReLU with 4× expansion (192 → 768 → 192), same pattern as the encoder.
+
+Each sublayer uses pre-LayerNorm and a residual connection:
+
+```python
+def forward(self, h, encoder_output, causal_mask, seq_mask):
+    h_attn, _ = self.self_attn(h, h, h, attn_mask=causal_mask)
+    h = self.norm1(h + h_attn)
+    h_cross, _ = self.cross_attn(h, encoder_output, encoder_output)  # no mask
+    h = self.norm2(h + h_cross)
+    h = self.norm3(h + self.ffn(h))
+    return h
+```
+
+The output projection gives logits over 20 amino acids at each position.
 
 The full forward pass for one protein:
 

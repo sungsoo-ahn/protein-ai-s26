@@ -6,7 +6,7 @@ description: "A deep dive into AlphaFold2's architecture—from MSA processing a
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 4
+lecture_number: 6
 preliminary: false
 toc:
   sidebar: left
@@ -14,7 +14,7 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 4 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. It assumes familiarity with transformers and attention mechanisms (Lecture 1) as well as protein language models (Lecture 3). All code examples use PyTorch and are simplified for pedagogical clarity.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 6 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. It assumes familiarity with transformers and attention mechanisms (Lecture 1) as well as protein language models (Lecture 5). All code examples use PyTorch and are simplified for pedagogical clarity.</em></p>
 
 ## Introduction
 
@@ -103,7 +103,7 @@ Before diving into equations and code, it helps to understand AlphaFold2's overa
 When predicting a protein's structure, one might think the only available information is the sequence itself---a string of amino acid letters.
 But every protein has evolutionary relatives: sequences that diverged from a common ancestor and have been independently shaped by natural selection.
 
-These relatives are collected into a **multiple sequence alignment**[^msa] (MSA), where homologous (introduced in Lecture 3) sequences are arranged so that evolutionarily equivalent positions line up in columns.
+These relatives are collected into a **multiple sequence alignment**[^msa] (MSA), where homologous (introduced in Lecture 5) sequences are arranged so that evolutionarily equivalent positions line up in columns.
 
 [^msa]: A **multiple sequence alignment** (MSA) is a matrix where each row is a related protein sequence and each column aligns evolutionarily corresponding positions. MSAs are built by search tools like JackHMMER or HHBlits, which scan large sequence databases to find homologs of the query protein. A typical MSA for AlphaFold2 may contain thousands of sequences.
 Examining an MSA reveals two kinds of signal:

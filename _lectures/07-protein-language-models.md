@@ -6,7 +6,7 @@ description: "How masked language modeling on millions of protein sequences lear
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 3
+lecture_number: 5
 preliminary: false
 toc:
   sidebar: left
@@ -14,7 +14,7 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 3 of the Protein & Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The course covers computational methods at the intersection of machine learning and protein science. Lecture 1 introduced transformers and graph neural networks; Lecture 2 covered generative models (VAEs and diffusion). Here we turn to protein language models, the self-supervised approach that learns rich representations directly from raw protein sequences.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 5 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The course covers computational methods at the intersection of machine learning and protein science. Lectures 1–2 introduced transformers and graph neural networks; Lectures 3–4 covered generative models (VAEs and diffusion). Here we turn to protein language models, the self-supervised approach that learns rich representations directly from raw protein sequences.</em></p>
 
 ## Introduction
 
@@ -835,7 +835,7 @@ The structure module is similar to the one used in AlphaFold2, operating on pair
 
 ### The key difference from AlphaFold2
 
-AlphaFold2 requires a **multiple sequence alignment** (MSA) as input: a collection of evolutionary relatives of the query protein, aligned position by position (covered in detail in Lecture 4, AlphaFold).
+AlphaFold2 requires a **multiple sequence alignment** (MSA) as input: a collection of evolutionary relatives of the query protein, aligned position by position (covered in detail in Lecture 6, AlphaFold).
 Constructing this MSA is computationally expensive, often taking minutes to hours for a single protein.
 
 ESMFold requires only a **single sequence**.

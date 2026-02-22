@@ -6,7 +6,7 @@ description: "Build RFDiffusion from scratch in 607 lines of PyTorch — SE(3) d
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 9
+lecture_number: 11
 preliminary: false
 toc:
   sidebar: left
@@ -34,6 +34,22 @@ If you have seen image diffusion models, you know the drill: take real data, gra
 The twist here is that we are not working with pixels. A protein backbone is a chain of residues, and each residue is a **rigid body** in 3D space -- it has a position (where it is) and an orientation (which way it faces). Mathematically, each residue lives in $$SE(3)$$, the group of rigid motions: a rotation matrix $$R$$ (3x3, from $$SO(3)$$) and a translation vector $$t$$ (3D vector, from $$\mathbb{R}^3$$).
 
 So our "image" is a sequence of $$SE(3)$$ frames, and we need to figure out how to add noise to -- and remove noise from -- rotations and translations.
+
+## Frame computation: Gram-Schmidt on the backbone
+
+Before diffusion can corrupt or denoise anything, we need ground-truth frames from the training structures. `compute_local_frame` builds an orthonormal coordinate system at each residue from its three backbone atoms (N, CA, C):
+
+```python
+x = normalize(C - CA)           # x-axis: CA → C direction
+z = normalize(cross(x, N - CA)) # z-axis: perpendicular to the N-CA-C plane
+y = cross(z, x)                 # y-axis: completes the right-handed frame
+R = stack([x, y, z], dim=-1)    # 3×3 rotation matrix (columns = axes)
+translation = CA                 # frame origin = CA position
+```
+
+This is Gram-Schmidt orthogonalization on the backbone triangle. The x-axis points from CA toward C, the z-axis is the normal to the N-CA-C plane, and y completes the orthonormal basis. The translation is simply the CA position.
+
+These frames are the "ground truth" that diffusion learns to predict. During training, IGSO3 and Gaussian noise corrupt these frames; the denoiser tries to recover them. At inference, the model generates frames from pure noise -- and those frames define the protein backbone through `backbone_from_frames()`.
 
 ## Two noise schedules: SO(3) x R(3)
 
@@ -76,7 +92,72 @@ k_global = apply_frames(k_pts)
 attn = scalar_attn - 0.5 * w * point_distance_sq + pair_bias
 ```
 
-This makes the attention **SE(3)-equivariant**: if you rotate the whole protein, the predictions rotate with it. Our IPA uses 8 heads, 4 query/key points per head, and 8 value points per head. The denoising network stacks 8 blocks, each containing IPA + triangular multiplicative updates (borrowed from AlphaFold2's pair representation logic) + a frame update step.
+The query/key points are *learned 3D offsets* in each residue's local coordinate frame. `apply_frames` rotates them by the residue's rotation matrix and adds its translation, placing them in global coordinates. Two residues whose frames point their query/key points at each other will have small point distances and high attention:
+
+```python
+def apply_frames(pts):
+    # pts: [B, L, H, P, 3] — points in local frame
+    flat = pts.reshape(B, L, H*P, 3)
+    rotated = torch.einsum("blij,blnj->blni", rigids.rots, flat)  # rotate
+    return (rotated + rigids.trans[:, :, None, :]).view_as(pts)    # translate
+
+q_global, k_global = apply_frames(q_pts), apply_frames(k_pts)
+```
+
+The point distance term sums squared Euclidean distances over all `n_qk_points` (4) point pairs:
+
+```python
+pt_diff = q_global[:, :, None] - k_global[:, None, :]  # [B, L, L, H, P, 3]
+pt_dist_sq = (pt_diff ** 2).sum(-1).sum(-1)             # sum over xyz and points → [B, L, L, H]
+```
+
+For value points, the same `apply_frames` transform brings them to global coordinates. After weighting by attention, the aggregated output points get *inverse-transformed* back to each residue's local frame:
+
+```python
+out_pts_global = torch.einsum("bhij,bjhpc->bihpc", attn, v_global)
+# Inverse transform: subtract translation, apply R^T
+flat_pts = out_pts_global.reshape(B, L, H*P_v, 3) - rigids.trans[:, :, None, :]
+out_pts_local = torch.einsum("blij,blnj->blni", inv_rots, flat_pts)
+```
+
+This inverse transform is what makes IPA SE(3)-equivariant: rotating all frames rotates all intermediate points identically, and the inverse transform undoes it. The final output lives in local frames, independent of global orientation.
+
+Our IPA uses 8 heads, 4 query/key points per head, and 8 value points per head.
+
+### Denoising block structure
+
+Each of the 8 denoising blocks has four stages: IPA on the single representation, triangular multiplicative updates on the pair representation, and a frame update.
+
+**Triangular multiplicative updates** maintain geometric consistency in the pair representation, same as in AlphaFold2's Pairformer. Two variants handle complementary information flows:
+
+- **Outgoing:** for each pair (i, j), aggregate over shared neighbor k using `left[i,k] * right[j,k]` — "which residues does i reach that j also reaches?"
+- **Incoming:** same but `left[k,i] * right[k,j]` — "which residues reach both i and j?"
+
+Each uses gated projections -- the input goes through two parallel linear layers (value and gate), where the gate applies sigmoid to control information flow:
+
+```python
+left = self.left_proj(z) * torch.sigmoid(self.left_gate(z))
+right = self.right_proj(z) * torch.sigmoid(self.right_gate(z))
+out = torch.einsum("bikc,bjkc->bijc", left, right)  # outgoing
+out = self.output_proj(self.final_norm(out))
+return pair + torch.sigmoid(self.output_gate(pair)) * out  # gated residual
+```
+
+The output gate provides a second level of gating on the residual connection, letting the model control how much of the triangular update flows through.
+
+### Frame correction: small updates, big effect
+
+After IPA and the triangular updates, each block outputs a 6D correction per residue: 3 values for rotation (axis-angle) and 3 for translation. The correction is *composed* onto the current frame, not substituted:
+
+```python
+update = self.frame_update(self.frame_norm(node_feat))       # [B, L, 6]
+rot_mat = axis_angle_to_rotation_matrix(update[..., :3] * 0.1)  # scale down!
+frames = frames.compose(RigidTransform(rot_mat, update[..., 3:]))
+```
+
+The `* 0.1` scale factor on the axis-angle is critical. The Rodrigues formula converts axis-angle to a rotation matrix: $$R = I + \sin\theta \cdot K + (1-\cos\theta) \cdot K^2$$, where $$\theta$$ is the angle magnitude and $$K$$ is the skew-symmetric matrix of the axis. Without scaling, the network could output large rotational jumps (say, 90° in one block), destabilizing training. The 0.1 factor caps each block's rotation at roughly $$\pm 0.1 \times \pi \approx 18°$$ even with large activations.
+
+Composition (rather than replacement) is equally important: each block refines the frame incrementally. The `frame_update` weights are initialized to zero, so the model starts with identity corrections and gradually learns to make meaningful adjustments.
 
 ## Self-conditioning: a free lunch
 

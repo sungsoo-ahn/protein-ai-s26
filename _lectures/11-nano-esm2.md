@@ -6,7 +6,7 @@ description: "Build ESM2 from scratch in 288 lines of PyTorch — masked languag
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 7
+lecture_number: 9
 preliminary: false
 toc:
   sidebar: left
@@ -43,6 +43,22 @@ Our vocabulary is tiny: 20 amino acids plus 5 special tokens (PAD, MASK, CLS, EO
 
 ESM2 is a standard Transformer encoder, but with two modern upgrades that matter:
 
+**Scaled dot-product attention.** Each attention head projects the input into queries, keys, and values, then computes attention weights via a scaled dot product:
+
+```python
+q = self.q_proj(x).view(B, L, num_heads, head_dim).transpose(1, 2)  # [B, H, L, d_k]
+k = self.k_proj(x).view(B, L, num_heads, head_dim).transpose(1, 2)
+v = self.v_proj(x).view(B, L, num_heads, head_dim).transpose(1, 2)
+
+scores = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # [B, H, L, L]
+attn_weights = F.softmax(scores, dim=-1)
+out = torch.matmul(attn_weights, v)  # [B, H, L, d_k]
+```
+
+The scale factor is $$1/\sqrt{d_k}$$ where $$d_k$$ is the per-head dimension (512 / 16 = 32 for the 50.4M config). Without it, the dot products grow with $$d_k$$, pushing softmax into saturated regions where gradients vanish. Dividing by $$\sqrt{d_k}$$ keeps the variance of the logits at ~1 regardless of dimension.
+
+With 16 heads and `head_dim=32`, the full attention output is `[B, 16, L, 32]`, which gets transposed and reshaped back to `[B, L, 512]` before the output projection.
+
 **RoPE (Rotary Position Embeddings).** Instead of adding a learned position vector to each token, RoPE rotates the query and key vectors by a position-dependent angle. The core idea is elegant:
 
 ```python
@@ -50,6 +66,25 @@ q_rotated = q * cos(pos * freq) + rotate_half(q) * sin(pos * freq)
 ```
 
 Why bother? Because the dot product between two rotated vectors depends only on their *relative* distance, not their absolute positions. Position 10 attending to position 7 looks the same as position 100 attending to position 97. This is exactly what you want for proteins -- a helix motif works the same way whether it starts at residue 5 or residue 50.
+
+The implementation splits each vector into pairs of dimensions and rotates each pair by a position-dependent angle. The frequency for dimension pair $$i$$ is $$\theta_i = 1/10000^{2i/d}$$ -- low-frequency rotations for the first dimensions (capturing long-range position), high-frequency for the last (capturing fine-grained position):
+
+```python
+def rotate_half(x):
+    x1, x2 = x[..., :x.shape[-1] // 2], x[..., x.shape[-1] // 2:]
+    return torch.cat([-x2, x1], dim=-1)
+
+# Precompute frequencies: [seq_len, d_k]
+inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+freqs = torch.outer(positions, inv_freq)
+cos_cached, sin_cached = torch.cat([freqs, freqs], -1).cos(), ...
+
+# Apply to Q and K (not V -- relative position only matters for attention weights)
+q_rotated = q * cos + rotate_half(q) * sin
+k_rotated = k * cos + rotate_half(k) * sin
+```
+
+Only Q and K get rotated. V stays untouched because position information only needs to affect *which* tokens attend to each other (the attention weights), not *what* information gets passed through.
 
 **SwiGLU activation.** The feed-forward network uses a gated mechanism instead of a plain ReLU:
 
@@ -71,6 +106,17 @@ x = x + self.dropout(self.ffn(self.ln2(x)))
 ```
 
 Pre-LayerNorm means you normalize before each sublayer rather than after. It makes training more stable, especially for deeper models. This is now standard practice.
+
+### Forward pass data flow
+
+Trace a batch of protein sequences through the full model. Starting from token indices `[B, L]`:
+
+1. **Token embedding:** `[B, L] → [B, L, 512]` via a learned embedding table (25 × 512)
+2. **12 Transformer blocks:** each block applies LN → multi-head attention (with RoPE) → residual → LN → SwiGLU FFN → residual. The tensor stays `[B, L, 512]` throughout -- attention redistributes information across positions, the FFN processes each position independently
+3. **Final LayerNorm:** `[B, L, 512] → [B, L, 512]`
+4. **LM head:** a single linear projection `[B, L, 512] → [B, L, 25]` producing logits over the vocabulary
+
+No pooling, no CLS token aggregation -- the model produces per-position predictions, and the loss only looks at the masked positions.
 
 ## Masked Language Modeling
 

@@ -6,7 +6,7 @@ description: "How diffusion models on SE(3) frames enable the computational desi
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 5
+lecture_number: 7
 preliminary: false
 toc:
   sidebar: left
@@ -14,12 +14,12 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 5 of the Protein & Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The lecture builds on the diffusion model foundations introduced in Lecture 2 (Generative Models) and the structure prediction concepts from Lecture 4 (AlphaFold). Of all the lectures in this course, this one is the most mathematically intensive, requiring careful treatment of Lie groups, manifold-valued noise processes, and equivariant neural network design.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 7 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The lecture builds on the diffusion model foundations introduced in Lecture 4 (Diffusion Models) and the structure prediction concepts from Lecture 6 (AlphaFold). Of all the lectures in this course, this one is the most mathematically intensive, requiring careful treatment of Lie groups, manifold-valued noise processes, and equivariant neural network design.</em></p>
 
 ## Introduction: The Dream of De Novo Protein Design
 
 For decades, protein engineers have faced a fundamental asymmetry.
-Predicting how a known sequence folds into a three-dimensional structure is now largely solved, thanks to AlphaFold and related methods (Lecture 4).
+Predicting how a known sequence folds into a three-dimensional structure is now largely solved, thanks to AlphaFold and related methods (Lecture 6).
 But the reverse problem --- designing an entirely new protein that folds into a desired shape and performs a specified function --- has remained far more difficult.
 
 Consider the contrast with other engineering disciplines.
@@ -426,7 +426,7 @@ This non-commutativity is a fundamental feature of $$SE(3)$$ and has direct cons
 
 ### The Challenge of Adding Noise to Rotations
 
-Recall from Lecture 2 (Generative Models) how standard diffusion works for data in Euclidean space.
+Recall from Lecture 4 (Diffusion Models) how standard diffusion works for data in Euclidean space.
 Given a clean data point $$x_0$$, we define a forward process that gradually adds Gaussian noise:
 
 $$
@@ -957,7 +957,7 @@ class RFDiffusionBlock(nn.Module):
 
 The three components work together:
 
-**Invariant Point Attention (IPA)** is the attention mechanism from AlphaFold2's structure module (Lecture 4).
+**Invariant Point Attention (IPA)** is the attention mechanism from AlphaFold2's structure module (Lecture 6).
 It computes attention weights using both the learned features and the geometric relationship between residue frames.
 The attention is SE(3)-invariant: rotating the protein does not change which residues attend to which.
 
