@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-solubility"
-date: 2026-03-03
 description: "Build a protein solubility classifier from scratch — learned embeddings, 1D convolutions, and evaluation on real E. coli expression data."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"

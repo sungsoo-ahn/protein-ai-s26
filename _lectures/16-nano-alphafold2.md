@@ -1,12 +1,11 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-alphafold2"
-date: 2026-03-30
 description: "Build AlphaFold2 from scratch in ~650 lines of PyTorch — Pairformer, SE(3) diffusion, and FAPE loss."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 10
+lecture_number: 12
 preliminary: false
 toc:
   sidebar: left
@@ -20,7 +19,7 @@ related_posts: false
 </div>
 
 <p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;">
-<em>Companion to <a href="{{ '/lectures/08-alphafold/' | relative_url }}">Lecture: AlphaFold</a>. The lecture covers the theory; this page builds it from scratch.</em>
+<em>Companion to <a href="{{ '/lectures/10-alphafold-implementation/' | relative_url }}">Lecture: AlphaFold — Architecture and Training</a>. The lecture covers the theory; this page builds it from scratch.</em>
 </p>
 
 You give it a string of amino acids. It gives you back a 3D protein structure. That is the problem AlphaFold2 solved and what we are going to build here, from scratch, in about 650 lines of PyTorch.

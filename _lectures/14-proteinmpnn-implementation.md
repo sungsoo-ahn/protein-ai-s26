@@ -1,12 +1,11 @@
 ---
 layout: post
-title: "ProteinMPNN: Inverse Folding and Sequence Design"
-date: 2026-04-06
-description: "How message-passing neural networks solve the inverse folding problem—designing amino acid sequences that fold into target protein structures."
+title: "ProteinMPNN: Architecture and Training"
+description: "Inside ProteinMPNN—k-nearest neighbor graph construction, geometric edge features, message-passing encoder, random-order autoregressive decoder, and training with coordinate noise."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 8
+lecture_number: 17
 preliminary: false
 toc:
   sidebar: left
@@ -14,127 +13,33 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 8 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. The lecture builds on concepts from Lecture 6 (AlphaFold) and Lecture 7 (RFDiffusion). Familiarity with graph neural networks (Lecture 2) and generative models (Lectures 3–4) is assumed throughout.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 12 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. This is the architecture companion to Lecture 11 (Inverse Folding and the Design Pipeline). Assumes familiarity with graph neural networks (Lecture 2) and the inverse folding problem (Lecture 11). All code examples use PyTorch.</em></p>
 
 ## Introduction
 
-Suppose you have just used RFDiffusion to generate a protein backbone---a custom binder for a therapeutic target, or an enzyme scaffold with catalytic residues placed at precise coordinates.
-The backbone exists as a set of three-dimensional coordinates, but proteins are not manufactured from coordinates.
-They are built from sequences of amino acids, translated from genetic code by ribosomes in living cells.
-To make your designed protein in the laboratory, you need a sequence of amino acids that will reliably fold into that backbone.
+Lecture 11 framed the inverse folding problem and the design pipeline.
+This lecture opens the hood: how ProteinMPNN represents protein structure as a graph, encodes geometric relationships between residues, and generates sequences one amino acid at a time.
 
-Finding such a sequence is the **inverse folding problem**, and ProteinMPNN[^name] is the tool that solves it.
-Given a backbone structure, ProteinMPNN outputs a probability distribution over amino acid sequences conditioned on that structure.
-You can then sample from this distribution to obtain diverse candidate sequences, each predicted to fold into the target backbone.
-
-[^name]: The name stands for **Message Passing Neural Network for Proteins**. "Message passing" refers to the graph neural network mechanism at the heart of the model's structure encoder.
-
-This lecture covers the full ProteinMPNN system: how it represents protein structure as a graph, how it encodes that graph into rich per-residue representations, how it generates sequences one amino acid at a time, and how it integrates into the RFDiffusion $$\to$$ ProteinMPNN $$\to$$ AlphaFold design pipeline that has become the standard workflow in computational protein design.
+The architecture has three stages.
+First, backbone coordinates are converted into a k-nearest neighbor graph where each residue connects to its spatially closest neighbors.
+Second, a message-passing encoder propagates structural information across the graph, building context-aware representations for every residue.
+Third, an autoregressive decoder generates amino acids one position at a time, conditioned on the structure encoding and all previously decoded positions.
+The decoding order is randomized during training, so the model learns to predict any position given any subset of context.
 
 ### Roadmap
 
 | Section | Topic | Why It Is Needed |
 |---------|-------|------------------|
-| 1 | The Inverse Folding Problem | Defines the task ProteinMPNN solves and explains why multiple sequences can fold into the same structure |
-| 2 | Graph Construction | Translates raw backbone coordinates into a data structure that neural networks can process |
-| 3 | Edge Features | Provides a rich geometric vocabulary beyond simple distances |
-| 4 | The Structure Encoder | Propagates local geometric information across the protein through message passing |
-| 5 | Autoregressive Decoding | Generates amino acids one at a time, capturing inter-residue dependencies |
-| 6 | Training | Describes the loss function, random-order training, and data augmentation |
-| 7 | Advanced Features | Handles practical constraints: fixed positions, symmetry, and tied sequences |
-| 8 | The Design Pipeline | Connects RFDiffusion, ProteinMPNN, and AlphaFold into an end-to-end workflow |
-| 9 | Design Principles and Alternatives | Summarizes what makes ProteinMPNN work and compares it with other inverse folding methods |
+| 1 | Graph Construction | Translates raw backbone coordinates into a data structure that neural networks can process |
+| 2 | Edge Features | Provides a rich geometric vocabulary beyond simple distances |
+| 3 | The Structure Encoder | Propagates local geometric information across the protein through message passing |
+| 4 | Autoregressive Decoding | Generates amino acids one at a time, capturing inter-residue dependencies |
+| 5 | Training | Describes the loss function, random-order training, and data augmentation |
+| 6 | Advanced Features | Handles practical constraints: fixed positions, symmetry, and tied sequences |
 
 ---
 
-## 1. The Inverse Folding Problem
-
-### Forward Folding vs. Inverse Folding
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_0.png' | relative_url }}" alt="Forward folding versus inverse folding: forward folding maps one sequence to one structure via AlphaFold, while inverse folding maps one structure to multiple candidate sequences via ProteinMPNN">
-</div>
-
-In Lecture 6, we studied **forward folding**: given a sequence of amino acids, predict the three-dimensional structure.
-AlphaFold solves this problem with near-experimental accuracy.
-The forward direction mirrors what happens in biology---DNA encodes a protein sequence, and physics determines how that sequence folds.
-
-**Inverse folding** goes the other way.
-Given a target backbone structure, find amino acid sequences that will fold into it.
-If AlphaFold is a compiler that turns source code into an executable, ProteinMPNN is a decompiler that recovers source code from the executable.
-
-```
-Forward folding:   MKFLILLFNILCLFPVLAADNH...  -->  3D Structure
-                   (AlphaFold, ESMFold)
-
-Inverse folding:   3D Structure  -->  MKFLILLFNILCLFPVLAADNH...
-                                  -->  MKYLILIFNLLCLFPVLAADNH...
-                                  -->  MRFLILIFNILCLYPVLAADNQ...
-                   (ProteinMPNN)       (multiple valid sequences)
-```
-
-Notice a fundamental asymmetry in this diagram.
-Forward folding typically produces a single dominant structure from a given sequence[^ensemble].
-Inverse folding produces *many* valid sequences for a single structure.
-This many-to-one mapping is central to understanding why inverse folding is both tractable and useful.
-
-[^ensemble]: In reality, proteins sample an ensemble of conformations, but most well-folded proteins have a single dominant structure that accounts for the vast majority of the ensemble.
-
-### The Many-to-One Mapping
-
-Why can multiple sequences fold into the same structure?
-The answer lies in the physics of protein folding and the lessons of molecular evolution.
-
-Consider hemoglobin.
-Human hemoglobin and fish hemoglobin perform the same oxygen-carrying function and adopt remarkably similar three-dimensional structures, yet their sequences can differ by more than 50%.
-Or consider the immunoglobulin fold---this basic structural motif appears in thousands of different antibody sequences across the immune system, each with unique binding specificity encoded in variable loops but sharing the same underlying architecture.
-
-This sequence tolerance exists because not every amino acid position contributes equally to structural stability.
-Some positions sit in the hydrophobic core (see Lecture 5), where the main requirement is "something nonpolar"---valine, leucine, or isoleucine might all work equally well.
-Other positions face the solvent and can tolerate almost any hydrophilic residue.
-Only a subset of positions---those involved in specific hydrogen bonds, salt bridges, or tight packing interactions---are tightly constrained.
-
-Structural biologists quantify this tolerance with **sequence identity thresholds** (introduced in Preliminary Note 4).
-Proteins with as little as 20--30% sequence identity often share the same fold.
-This means roughly 70--80% of positions can vary without disrupting the overall architecture.
-For inverse folding, this redundancy is a blessing: there is a vast space of valid sequences for any given structure, making the search problem tractable.
-
-<div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/proteinmpnn_recovery.png' | relative_url }}" alt="ProteinMPNN sequence recovery comparison">
-    <div class="caption mt-1"><strong>Sequence recovery rates across inverse folding methods.</strong> ProteinMPNN achieves over 50% native sequence recovery on held-out test proteins, substantially outperforming previous methods. Adding coordinate noise during training further improves robustness. Data adapted from Dauparas et al., 2022.</div>
-</div>
-
-ProteinMPNN captures this diversity by learning a conditional probability distribution:
-
-$$
-P(\mathbf{s} \mid \mathcal{X})
-$$
-
-where $$\mathbf{s} = (s_1, s_2, \dots, s_L)$$ is a sequence of $$L$$ amino acids and $$\mathcal{X}$$ denotes the backbone structure (the set of backbone atom coordinates).
-Rather than outputting a single "best" sequence, the model provides probabilities for each amino acid at each position, allowing us to sample diverse sequences that are all predicted to fold correctly.
-
-### Why Inverse Folding Matters
-
-Inverse folding has become one of the most practically important tools in computational protein design for four reasons.
-
-**Completing the design pipeline.**
-Backbone generation methods like RFDiffusion (Lecture 7) produce three-dimensional coordinates, but these are not directly manufacturable.
-Inverse folding provides the missing link, converting geometric designs into genetic sequences that can be ordered as synthetic DNA and expressed in cells.
-
-**Sequence optimization.**
-Sometimes you already have a protein that works but could be better---perhaps it expresses poorly in your production system, or it aggregates during purification.
-Inverse folding can suggest alternative sequences that maintain the same structure while potentially improving biochemical properties like solubility or thermostability.
-
-**Exploring sequence space.**
-For a given backbone, inverse folding can generate hundreds of diverse sequences.
-This is invaluable for experimental screening: you test many variants simultaneously and identify sequences with favorable properties that no single computational method would have predicted.
-
-**Understanding evolution.**
-By analyzing which sequence features ProteinMPNN considers important for a given structure, we gain insight into the molecular determinants of protein folding---essentially reverse-engineering nature's design rules.
-
----
-
-## 2. Graph Construction: Proteins as k-Nearest Neighbor Graphs
+## 1. Graph Construction: Proteins as k-Nearest Neighbor Graphs
 
 <div class="col-sm mt-3 mb-3 mx-auto">
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_1.png' | relative_url }}" alt="Graph construction pipeline: backbone coordinates are converted to Cα distances, then a k-nearest neighbor graph with 30 neighbors per residue is built">
@@ -202,6 +107,7 @@ def build_knn_graph(ca_coords, k=30, exclude_self=True):
 
     return edge_index, edge_dist
 ```
+<div class="caption mt-1">Graph construction computes pairwise distances between all alpha-carbon atoms, then selects the k nearest neighbors for each residue. Self-loops are excluded by setting the diagonal to infinity before the top-k selection.</div>
 
 <div class="col-sm-10 mt-3 mb-3 mx-auto">
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/proteinmpnn_graph.png' | relative_url }}" alt="ProteinMPNN k-NN graph construction">
@@ -214,7 +120,7 @@ By using *spatial* rather than *sequence* neighborhoods, the graph encodes exact
 
 ---
 
-## 3. Edge Features: Encoding Spatial Relationships
+## 2. Edge Features: Encoding Spatial Relationships
 
 A single distance number between two residues is not enough to describe their geometric relationship.
 Two residue pairs might both be 8 angstroms apart, yet one pair could be in a parallel beta-sheet (side by side, pointing the same direction) while the other is in an antiparallel arrangement (side by side, pointing opposite directions).
@@ -249,13 +155,14 @@ def rbf_encode(distances, num_rbf=16, max_dist=20.0):
     gamma = num_rbf / max_dist
     return torch.exp(-gamma * (distances.unsqueeze(-1) - centers) ** 2)
 ```
+<div class="caption mt-1">RBF encoding places evenly spaced Gaussian centers along the distance axis. Each distance activates nearby centers strongly and distant centers weakly, producing a smooth representation.</div>
 
 ### Local Coordinate Frames
 
 Each residue has a natural local coordinate system defined by its three backbone atoms: N, $$\text{C}_\alpha$$, and C.
 These three atoms define a plane, and from that plane we can construct an orthonormal frame[^frame]:
 
-[^frame]: This is sometimes called a **residue frame** or **backbone frame**. The same idea appears in AlphaFold's Invariant Point Attention (Lecture 6), where each residue carries a rigid-body frame $$(R_i, \mathbf{t}_i)$$.
+[^frame]: This is sometimes called a **residue frame** or **backbone frame**. The same idea appears in AlphaFold's Invariant Point Attention (Lectures 7-8), where each residue carries a rigid-body frame $$(R_i, \mathbf{t}_i)$$.
 
 - The **x-axis** points from $$\text{C}_\alpha$$ toward C.
 - The **z-axis** is perpendicular to the N-$$\text{C}_\alpha$$-C plane (computed via a cross product).
@@ -290,6 +197,7 @@ def compute_local_frame(N, CA, C):
     R = torch.stack([x, y, z], dim=-1)  # [..., 3, 3]
     return R, CA
 ```
+<div class="caption mt-1">The local frame is built from the three backbone atoms of each residue. The x-axis points along the C<sub>&alpha;</sub>-C bond, the z-axis is normal to the backbone plane, and the y-axis completes the orthonormal basis.</div>
 
 ### Direction and Orientation Features
 
@@ -304,12 +212,12 @@ Rather than learning from scratch what an "alpha helix" or "beta sheet" looks li
 
 ---
 
-## 4. The Structure Encoder: Message Passing
+## 3. The Structure Encoder: Message Passing
 
 With the graph constructed and edge features computed, the **structure encoder** integrates information across the protein.
 Its mechanism is **message passing**---a paradigm from graph neural networks where each node iteratively gathers information from its neighbors[^gnn-ref].
 
-[^gnn-ref]: For a review of message passing neural networks, see Gilmer et al. (2017), "Neural Message Passing for Quantum Chemistry," *ICML*. We also covered the basics in Lecture 2 (GNNs).
+[^gnn-ref]: For a review of message passing neural networks, see Gilmer et al. (2017), "Neural Message Passing for Quantum Chemistry," *ICML*. The basics are covered in Lecture 2 (GNNs).
 
 ### How Message Passing Works
 
@@ -400,6 +308,7 @@ class MPNNLayer(nn.Module):
 
         return h_new
 ```
+<div class="caption mt-1">Each message-passing layer computes messages from neighbor features and edge features, aggregates them via summation, and updates the node representation with a residual connection and layer normalization.</div>
 
 After three such layers, each residue's representation captures not just its own local geometry but the shape of nearby secondary structure elements, the positioning of core versus surface, and the presence of cavities or channels.
 This contextual encoding is the foundation on which the decoder builds.
@@ -410,7 +319,7 @@ This contextual encoding is the foundation on which the decoder builds.
 
 ---
 
-## 5. Autoregressive Decoding: One Amino Acid at a Time
+## 4. Autoregressive Decoding: One Amino Acid at a Time
 
 <div class="col-sm mt-3 mb-3 mx-auto">
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_3.png' | relative_url }}" alt="Autoregressive decoding: encoder embeddings feed into a sequential decoder that generates amino acid probabilities one position at a time, each conditioned on previously decoded positions and the structure">
@@ -435,12 +344,12 @@ This factorization has three advantages over predicting all positions simultaneo
 [^non-ar]: Non-autoregressive approaches do exist---for example, predicting all amino acids in parallel. These are faster at inference time but generally less accurate, because they cannot model the dependencies between positions at different steps of decoding.
 
 - **Captures dependencies.** If you place a positively charged lysine at one position, a nearby position might prefer a negatively charged glutamate for favorable electrostatic interaction. Autoregressive generation models these pairwise preferences naturally.
-- **Exact likelihoods.** We can compute $$\log P(\mathbf{s} \mid \mathcal{X})$$ exactly by summing the log-probabilities at each step. This is useful for ranking and filtering designs.
-- **Flexible constraints.** We can fix certain positions, adjust sampling randomness, or apply other constraints during generation without retraining.
+- **Exact likelihoods.** The log-probability $$\log P(\mathbf{s} \mid \mathcal{X})$$ can be computed exactly by summing the log-probabilities at each step. This is useful for ranking and filtering designs.
+- **Flexible constraints.** Certain positions can be fixed, sampling randomness can be adjusted, or other constraints can be applied during generation without retraining.
 
 ### Random Decoding Order
 
-In language models, we generate tokens left to right because that matches how we read.
+In language models, tokens are generated left to right because that matches how we read.
 For proteins, there is no privileged direction---the N-terminus is not inherently more important than the C-terminus.
 
 ProteinMPNN uses a **random decoding order** during training.
@@ -451,7 +360,7 @@ This has three important consequences:
 2. **Bidirectional context.** When decoding position $$i$$, the model may have already decoded positions both before and after $$i$$ in the sequence. This provides richer context than strict left-to-right generation.
 3. **Reduced bias.** N-to-C decoding would create an asymmetry where early positions are predicted with less context than late positions. Random order averages out this bias over many training iterations.
 
-The decoding order is enforced through a **causal mask** that prevents each position from attending to positions that have not yet been decoded:
+The decoding order is enforced through a **causal mask** that prevents each position from attending to positions that have not yet been decoded.
 
 ```python
 def create_decoding_mask(decoding_order):
@@ -477,10 +386,11 @@ def create_decoding_mask(decoding_order):
 
     return mask
 ```
+<div class="caption mt-1">The causal mask converts an arbitrary decoding permutation into an attention mask. Each position can attend only to positions that were decoded at earlier steps in the permutation.</div>
 
 ### Sampling Strategies
 
-Once the model is trained, we control the diversity of generated sequences through sampling strategies that adjust the trade-off between confidence and exploration.
+Once the model is trained, the diversity of generated sequences is controlled through sampling strategies that adjust the trade-off between confidence and exploration.
 
 **Temperature sampling.**
 Let $$z_i$$ denote the logit (raw network output) for amino acid $$i$$.
@@ -496,11 +406,11 @@ When $$T > 1$$, the distribution flattens, giving rare amino acids a higher chan
 In practice, temperatures of 0.1--0.3 produce conservative, high-confidence designs; temperatures near 1.0 explore more diverse alternatives.
 
 **Top-$$k$$ sampling.**
-Only consider the $$k$$ amino acids with the highest logits; set all other probabilities to zero.
+Only the $$k$$ amino acids with the highest logits are considered; all other probabilities are set to zero.
 This prevents sampling extremely unlikely amino acids while preserving diversity among the top choices.
 
 **Top-$$p$$ (nucleus) sampling.**
-Select the smallest set of amino acids whose cumulative probability exceeds a threshold $$p$$.
+The smallest set of amino acids whose cumulative probability exceeds a threshold $$p$$ is selected.
 If one amino acid dominates (e.g., 95% probability), only that amino acid is considered.
 If the distribution is flat, many amino acids remain in the candidate set.
 This adaptive behavior makes top-$$p$$ sampling more robust than a fixed top-$$k$$.
@@ -564,10 +474,11 @@ def sample_sequence(model, structure_encoding, temperature=0.1,
 
     return sequence, log_probs
 ```
+<div class="caption mt-1">The sampling loop iterates through positions in the decoding order, predicting one amino acid per step. Temperature and top-k filtering control the diversity of generated sequences.</div>
 
 ---
 
-## 6. Training: Learning from Nature's Designs
+## 5. Training: Learning from Nature's Designs
 
 Training ProteinMPNN is conceptually straightforward: show the model millions of protein structures paired with their natural sequences, and train it to predict the sequence given the structure.
 Several details make this work well in practice.
@@ -627,6 +538,7 @@ def train_step(model, batch, optimizer, device):
 
     return loss.item()
 ```
+<div class="caption mt-1">Each training step samples a fresh random permutation for the decoding order, computes logits via teacher forcing, and minimizes cross-entropy loss against the true sequence.</div>
 
 ### Data Augmentation
 
@@ -658,6 +570,7 @@ def augment_structure(coords, noise_prob=0.1, noise_std=0.1):
             coords[atom_name] = coords[atom_name] + torch.randn_like(coords[atom_name]) * noise_std
     return coords
 ```
+<div class="caption mt-1">Coordinate noise augmentation adds small perturbations to backbone atom positions, improving robustness to the geometric imprecision of computationally designed backbones.</div>
 
 ### Training Data
 
@@ -667,7 +580,7 @@ Structures are filtered by resolution (typically $$\leq$$ 3.5 angstroms) and red
 
 ---
 
-## 7. Advanced Features: Constraints and Symmetry
+## 6. Advanced Features: Constraints and Symmetry
 
 Real protein design problems come with constraints.
 You may need to keep certain catalytic residues unchanged, or you may be designing a symmetric oligomer where all chains must share the same sequence.
@@ -676,7 +589,7 @@ ProteinMPNN handles both cases cleanly.
 ### Fixed Position Conditioning
 
 Suppose you have a validated binding interface and want to redesign only the rest of the protein for improved stability.
-The approach is simple: set the binding-site residues to their known amino acids and exclude them from the decoding order.
+The approach is straightforward: set the binding-site residues to their known amino acids and exclude them from the decoding order.
 The decoder then conditions on these fixed positions when generating the remaining sequence.
 
 ```python
@@ -726,6 +639,7 @@ def design_with_fixed_positions(model, coords, fixed_positions, fixed_aas):
 
     return sequence
 ```
+<div class="caption mt-1">Fixed positions are pre-filled and placed at the beginning of the decoding order. The decoder conditions on them as known context when generating the remaining positions.</div>
 
 This mechanism is powerful because it lets you mix experimental knowledge (known functional residues) with computational design (optimized scaffold residues) in a single pass.
 
@@ -738,7 +652,7 @@ ProteinMPNN handles this through **tied positions**[^tied].
 [^tied]: Tied positions can also enforce sequence identity between non-symmetric chains when design constraints require it, though symmetric assemblies are the most common use case.
 
 The strategy is to group positions that must share the same amino acid (corresponding positions across symmetric copies), then decode only one representative from each group.
-At each decoding step, the chosen amino acid is copied to all tied partners:
+At each decoding step, the chosen amino acid is copied to all tied partners.
 
 ```python
 def design_with_symmetry(model, coords, symmetry_groups):
@@ -784,164 +698,36 @@ def design_with_symmetry(model, coords, symmetry_groups):
 
     return sequence
 ```
+<div class="caption mt-1">Symmetry is enforced by decoding only one representative per symmetry group and copying each decoded amino acid to all tied positions. The number of decoding steps equals the number of unique positions, not the total residue count.</div>
 
 This approach is efficient---the number of decoding steps equals the number of unique positions, not the total number of residues---and it guarantees that all symmetry-related positions receive the same amino acid.
 
 ---
 
-## 8. The Design Pipeline: RFDiffusion + ProteinMPNN + AlphaFold
-
-<div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/design_pipeline.png' | relative_url }}" alt="Computational protein design pipeline">
-    <div class="caption mt-1"><strong>The computational protein design pipeline.</strong> A design specification is first converted to backbone coordinates by RFDiffusion, then to amino acid sequences by ProteinMPNN, then validated by AlphaFold2 structure prediction. Only sequences whose predicted structures match the design (TM-score > 0.8) proceed to experimental testing.</div>
-</div>
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-09-proteinmpnn_diagram_4.png' | relative_url }}" alt="Computational protein design pipeline: design specification flows through RFDiffusion for backbone generation, ProteinMPNN for sequence design, AlphaFold2 for structure validation, and finally experimental testing">
-</div>
-
-ProteinMPNN's impact comes from its role in a larger pipeline.
-No single tool handles the full journey from design specification to experimentally validated protein.
-The modern computational protein design workflow chains three models together, each solving a different sub-problem.
-
-### Step 1: Backbone Generation with RFDiffusion
-
-The pipeline begins with a design specification: a binder to a specific epitope, a symmetric assembly, or an enzyme scaffold with catalytic residues at defined positions.
-**RFDiffusion** (Lecture 7) takes this specification and generates diverse backbone structures---sets of $$(\text{N}, \text{C}_\alpha, \text{C}, \text{O})$$ coordinates for each residue---that satisfy the specification.
-
-At this stage, the output is purely geometric.
-There are no amino acid identities, only a shape.
-
-### Step 2: Sequence Design with ProteinMPNN
-
-For each backbone from Step 1, **ProteinMPNN** generates multiple candidate sequences.
-Practical recommendations:
-
-- **Generate many candidates.** ProteinMPNN is fast. Generate 100 or more sequences per backbone, then filter aggressively. The computational cost is negligible compared to the cost of a failed experiment.
-- **Use multiple temperatures.** Generate some sequences at low temperature ($$T = 0.1$$, conservative, high confidence) and some at higher temperature ($$T = 0.3\text{--}1.0$$, diverse, potentially discovering better solutions). The optimal temperature depends on the application.
-- **Apply constraints.** If certain residues are functionally required (e.g., catalytic triads, disulfide bonds), fix them during decoding.
-
-### Step 3: Validation with AlphaFold or ESMFold
-
-The key question is: will the designed sequence actually fold into the intended backbone?
-To answer this, we run the designed sequence through a **structure prediction** model---AlphaFold2 (Lecture 6) or ESMFold---and compare the predicted structure to the design target.
-
-The primary metric is the **TM-score**[^tmscore], which measures global structural similarity on a scale from 0 (unrelated) to 1 (identical).
-A TM-score above 0.5 generally indicates that two structures share the same fold; designs with TM-scores above 0.8 are considered high-confidence matches.
-AlphaFold's per-residue confidence score (**pLDDT**) provides additional information about which regions of the design are well-predicted.
-
-[^tmscore]: TM-score stands for **Template Modeling score**. Unlike RMSD, TM-score is length-normalized and less sensitive to local structural deviations, making it a better metric for assessing overall fold similarity.
-
-### Step 4: Filtering and Ranking
-
-After structure prediction, filter and rank candidates using:
-
-- **TM-score** between the predicted and designed backbones.
-- **pLDDT** from AlphaFold (higher is better; values above 80 suggest confident predictions).
-- **Sequence properties** such as predicted solubility, aggregation propensity, and expression likelihood.
-- **Diversity** among the top candidates, to maximize the chance that at least one works experimentally.
-
-### Step 5: Experimental Validation
-
-The final step is synthesis and testing.
-Selected sequences are ordered as synthetic genes, cloned into expression vectors, expressed in cells (typically *E. coli* or mammalian cell lines), purified, and tested for the intended function.
-
-The original ProteinMPNN paper reported that **over 50% of designed sequences** folded into the target structure when tested experimentally---a dramatic improvement over previous methods, which achieved roughly 10% success rates.
-This high hit rate makes the RFDiffusion $$\to$$ ProteinMPNN $$\to$$ AlphaFold pipeline practical for real-world protein engineering.
-
-### Pipeline Summary
-
-```
-Step 1: RFDiffusion
-   Specification  -->  Backbone coordinates
-
-Step 2: ProteinMPNN
-   Backbone  -->  100+ candidate sequences (diverse temperatures)
-
-Step 3: AlphaFold / ESMFold
-   Each sequence  -->  Predicted structure + confidence (pLDDT)
-
-Step 4: Filtering
-   Keep sequences where predicted structure matches design (TM-score > 0.8)
-
-Step 5: Experiment
-   Synthesize, express, purify, test
-```
-
-### Practical Considerations
-
-**Consider the full biological context.**
-ProteinMPNN designs sequences for isolated chains or complexes, but the protein will eventually exist inside a cell or in a buffer.
-Check for protease cleavage sites, glycosylation motifs, and compatibility with your expression system.
-
-**Iterate.**
-The pipeline is fast enough to run multiple rounds.
-If early designs fail, analyze the failures, adjust constraints, and redesign.
-Each round provides information that improves subsequent attempts.
-
----
-
-## 9. Design Principles and Alternatives
-
-### What Makes ProteinMPNN Work
-
-Several design choices contribute to ProteinMPNN's effectiveness.
-The table below summarizes them:
-
-| Principle | Implementation | Why It Works |
-|-----------|----------------|--------------|
-| Structure as graph | k-NN graph on $$\text{C}_\alpha$$ atoms | Captures both local and long-range spatial contacts |
-| Rich edge features | RBF distances, local frames, orientations | Provides geometric vocabulary beyond raw distances |
-| Autoregressive decoding | One amino acid per step | Models inter-residue dependencies accurately |
-| Random decoding order | Fresh permutation each training step | Prevents directional bias; enables flexible generation |
-| Controlled sampling | Temperature, top-$$k$$, top-$$p$$ | Balances sequence diversity against design confidence |
-
-### Feature Engineering Still Matters
-
-ProteinMPNN's success relies on carefully designed geometric features---local coordinate frames, RBF-encoded distances, orientation dot products.
-These features provide the network with a structural vocabulary that would take far more data and capacity to learn from raw coordinates alone.
-This is an instructive counterpoint to the "end-to-end learning" philosophy: in domains with strong geometric structure, thoughtful feature engineering remains a powerful tool.
-
-### Comparison with Alternative Methods
-
-ProteinMPNN is not the only inverse folding method.
-Understanding the alternatives clarifies its design choices:
-
-| Method | Approach | Key Strength |
-|--------|----------|--------------|
-| **ProteinMPNN** (Dauparas et al., 2022) | Autoregressive GNN | High accuracy, fast inference, widely adopted |
-| **ESM-IF** (Hsu et al., 2022) | Transformer + ESM language model backbone | Leverages evolutionary knowledge from large-scale pre-training |
-| **GVP** (Jing et al., 2021) | Geometric vector perceptrons | Built-in SE(3) equivariance without data augmentation |
-| **AlphaDesign** | AlphaFold-based end-to-end | Differentiable structure-aware loss |
-
-ProteinMPNN's combination of accuracy, speed, and simplicity has made it the de facto standard.
-It runs in seconds per sequence on a single GPU, requires no MSA computation, and integrates seamlessly into the RFDiffusion pipeline.
-
----
-
 ## Key Takeaways
 
-1. **Inverse folding converts structure to sequence.** Given a target backbone, ProteinMPNN outputs a probability distribution over amino acid sequences. The many-to-one mapping between sequences and structures makes the problem tractable: many different sequences can fold into the same backbone.
+1. **Proteins are represented as k-nearest neighbor graphs** built from $$\text{C}_\alpha$$ distances, with rich edge features (RBF-encoded distances, local frame orientations, sequence separation) that encode the geometric vocabulary of protein structure.
 
-2. **Proteins are represented as k-nearest neighbor graphs** built from $$\text{C}_\alpha$$ distances, with rich edge features (RBF-encoded distances, local frame orientations, sequence separation) that encode the geometric vocabulary of protein structure.
+2. **Message passing propagates structural context.** Three layers of graph neural network message passing give each residue a representation that captures its local geometry, secondary structure environment, and broader tertiary context.
 
-3. **Message passing propagates structural context.** Three layers of graph neural network message passing give each residue a representation that captures its local geometry, secondary structure environment, and broader tertiary context.
+3. **Autoregressive decoding with random order** generates amino acids one at a time, capturing inter-residue dependencies while avoiding directional bias. Random training permutations ensure the model can predict any position given any subset of context.
 
-4. **Autoregressive decoding with random order** generates amino acids one at a time, capturing inter-residue dependencies while avoiding directional bias. Random training permutations ensure the model can predict any position given any subset of context.
+4. **Coordinate noise augmentation** during training builds robustness to the geometric imprecision of computationally designed backbones, a critical factor in ProteinMPNN's high experimental success rate.
 
-5. **ProteinMPNN is the bridge in the design pipeline.** The RFDiffusion $$\to$$ ProteinMPNN $$\to$$ AlphaFold workflow converts design specifications into experimentally testable sequences, with over 50% of designed sequences folding as intended.
+5. **Constraints integrate naturally.** Fixed positions preserve functional residues by conditioning the decoder on known amino acids. Tied positions enforce symmetry by copying decoded amino acids across equivalent positions.
 
-6. **Practical design uses constraints and diversity.** Fixed positions preserve functional residues, tied positions enforce symmetry, and temperature-controlled sampling balances confidence against sequence diversity.
+6. **Feature engineering matters.** Local coordinate frames, RBF distances, and orientation features provide a geometric vocabulary that would require far more data and model capacity to learn from raw coordinates alone.
 
 ---
 
 <div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
-<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/14-nano-proteinmpnn/' | relative_url }}">nano-proteinmpnn code walkthrough</a> implements this lecture's architecture from scratch in 448 lines of PyTorch. k-NN graph, MPNN encoder, random-order decoder — fork it and swap in a larger dataset.
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/18-nano-proteinmpnn/' | relative_url }}">nano-proteinmpnn code walkthrough</a> implements this lecture's architecture from scratch in 448 lines of PyTorch. k-NN graph, MPNN encoder, random-order decoder --- fork it and swap in a larger dataset.<br>
+<strong>Problem context:</strong> <a href="{{ '/lectures/13-proteinmpnn-tasks/' | relative_url }}">Lecture 11 — Inverse Folding and the Design Pipeline</a> covers why inverse folding matters and how ProteinMPNN fits into the end-to-end design workflow.
 </div>
 
 ## Further Reading
 
-- **Code walkthrough:** [nano-proteinmpnn]({{ '/lectures/14-nano-proteinmpnn/' | relative_url }}) — build ProteinMPNN from scratch in 448 lines of PyTorch
-- 310.ai, ["ProteinMPNN: Message Passing on Protein Structures"](https://310.ai/blog/proteinmpnn-message-passing-on-protein-structures) — walkthrough of ProteinMPNN's backbone encoding, edge/node message passing, and order-agnostic autoregressive decoding.
+- **Code walkthrough:** [nano-proteinmpnn]({{ '/lectures/18-nano-proteinmpnn/' | relative_url }}) --- build ProteinMPNN from scratch in 448 lines of PyTorch
+- 310.ai, ["ProteinMPNN: Message Passing on Protein Structures"](https://310.ai/blog/proteinmpnn-message-passing-on-protein-structures) --- walkthrough of ProteinMPNN's backbone encoding, edge/node message passing, and order-agnostic autoregressive decoding.
 
 ---

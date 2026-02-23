@@ -1,12 +1,11 @@
 ---
 layout: post
-title: "Protein Language Models"
-date: 2026-03-25
-description: "How masked language modeling on millions of protein sequences learns evolutionary, structural, and functional information—from ESM-2 embeddings to LoRA fine-tuning."
+title: "Protein Language Models: Architecture and Training"
+description: "Inside ESM-2's transformer backbone—masked language modeling, SwiGLU activations, embedding extraction, mutation scoring, LoRA fine-tuning, and attention-based contact prediction."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 5
+lecture_number: 8
 preliminary: false
 toc:
   sidebar: left
@@ -14,156 +13,35 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 5 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The course covers computational methods at the intersection of machine learning and protein science. Lectures 1–2 introduced transformers and graph neural networks; Lectures 3–4 covered generative models (VAEs and diffusion). Here we turn to protein language models, the self-supervised approach that learns rich representations directly from raw protein sequences.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 6 of the Protein &amp; Artificial Intelligence course (Spring 2026), the implementation companion to Lecture 5 (PLM Tasks and Applications). It assumes familiarity with what protein language models achieve—the protein-language analogy, the evolutionary signal in sequence data, and the downstream tasks that pLM embeddings support. This lecture covers the how: the masked language modeling objective, the ESM-2 transformer architecture, and the code for extracting embeddings, scoring mutations, fine-tuning with LoRA, and predicting contacts from attention maps.</em></p>
 
 ## Introduction
 
-What if amino acid sequences are sentences, and evolution is the author?
+Lecture 5 established *what* protein language models learn and *what* they are used for: embeddings that encode evolutionary constraints, zero-shot mutation scoring that rivals supervised methods, and single-sequence structure prediction that bypasses multiple sequence alignments.
 
-This is not a loose metaphor.
-Over four billion years, natural selection has tested protein sequences against the harshest possible critic: survival.
-The sequences we observe today are the ones that fold correctly, carry out their functions, and keep their organisms alive.
-They are, in a precise statistical sense, the *grammatically correct* sentences in the language of life.
+This lecture opens the hood.
 
-Protein language models (pLMs) take this analogy seriously.
-They apply the same masked-prediction training that powers BERT and GPT to hundreds of millions of protein sequences, learning representations that encode evolutionary constraints, structural contacts, and functional motifs---all without a single experimental label.
-
-The payoff is broad.
-ESM-2 embeddings improve virtually every protein-understanding task that has been tested.
-Zero-shot mutation scoring rivals purpose-built predictors.
-ESMFold predicts three-dimensional structure from a single sequence, without multiple sequence alignments.
-And LoRA fine-tuning makes all of this accessible on a single GPU.
-
-This lecture develops the ideas behind protein language models from the ground up, starting with the protein-language analogy, moving through the masked language modeling objective, and arriving at practical tools for extracting embeddings, scoring mutations, fine-tuning with LoRA, and predicting structure.
+The masked language modeling objective transforms raw protein sequences into a self-supervised training signal.
+The ESM-2 transformer architecture---with rotary position embeddings, pre-layer normalization, and SwiGLU activations---converts that signal into rich per-residue representations.
+And the practical code for extracting embeddings, scoring mutations, fine-tuning classifiers, applying LoRA, predicting structure with ESMFold, and reading contact information from attention maps turns these representations into tools.
 
 ### Roadmap
 
 | Section | Why it is needed |
 |---|---|
-| [The Protein-Language Analogy](#the-protein-language-analogy) | Motivates why NLP techniques transfer to proteins |
-| [Learning from Evolutionary Experiments](#learning-from-billions-of-evolutionary-experiments) | Explains the self-supervised signal hiding in sequence databases |
-| [Masked Language Modeling](#masked-language-modeling) | Introduces the training objective that drives pLMs |
-| [ESM-2 Architecture and Model Family](#esm-2-architecture-and-model-family) | Describes the state-of-the-art pLM and its Transformer backbone |
-| [Extracting and Using Embeddings](#extracting-and-using-embeddings) | Shows how to get per-residue and sequence-level representations |
-| [Zero-Shot Mutation Prediction](#zero-shot-mutation-prediction) | Demonstrates label-free fitness estimation |
-| [Fine-Tuning for Specific Tasks](#fine-tuning-for-specific-tasks) | Adapts pLM representations to labeled datasets |
-| [LoRA: Efficient Adaptation](#lora-efficient-adaptation) | Reduces trainable parameters to less than 1% |
-| [ESMFold: From Embeddings to Structure](#esmfold-from-embeddings-to-structure) | Predicts 3D coordinates from a single sequence |
-| [Attention Maps as Structure Windows](#attention-maps-as-structure-windows) | Interprets what the model has learned about contacts |
-| [The Broader pLM Landscape](#the-broader-plm-landscape) | Surveys alternative models and their niches |
-| [Practical Considerations](#practical-considerations) | Guides model selection, memory budgets, and batch processing |
+| [Masked Language Modeling](#1-masked-language-modeling) | The training objective that drives pLMs |
+| [ESM-2 Architecture and Model Family](#2-esm-2-architecture-and-model-family) | The state-of-the-art pLM and its transformer backbone |
+| [Extracting ESM-2 Embeddings](#3-extracting-esm-2-embeddings) | Code for per-residue and sequence-level representations |
+| [Zero-Shot Mutation Scoring](#4-zero-shot-mutation-scoring) | Code for label-free fitness estimation |
+| [Fine-Tuning Classifiers](#5-fine-tuning-classifiers) | Code for sequence-level and per-residue task heads |
+| [LoRA: Efficient Adaptation](#6-lora-efficient-adaptation) | Reduces trainable parameters to less than 1% |
+| [ESMFold: Architecture and Code](#7-esmfold-architecture-and-code) | Predicts 3D coordinates from a single sequence |
+| [Attention Maps as Structure Windows](#8-attention-maps-as-structure-windows) | Interprets what the model has learned about contacts |
 
 ---
 
-## 1. The Protein-Language Analogy
+## 1. Masked Language Modeling
 
-Before introducing any formulas, consider proteins and natural language side by side.
-
-In English, words combine into sentences according to grammatical rules.
-Some word combinations are meaningful; most are not.
-The meaning of a word depends on context: "bank" means one thing in "river bank" and another in "bank account."
-Synonyms exist---words that differ in form but serve similar functions.
-And language evolves over time while preserving core structural principles.
-
-Proteins share every one of these properties.
-
-**Amino acids are words.**
-Twenty distinct chemical building blocks serve as the vocabulary[^selenocysteine].
-Each has a characteristic side chain that determines its chemical personality: hydrophobic, charged, polar, aromatic, and so on.
-
-[^selenocysteine]: Strictly speaking, there are 22 genetically encoded amino acids if we include selenocysteine and pyrrolysine, but the standard vocabulary for most pLMs uses the canonical 20.
-
-**Protein sequences are sentences.**
-A linear chain of amino acids encodes a specific three-dimensional structure and biological function, just as a sentence encodes meaning through a linear arrangement of words.
-
-**Biochemical constraints are grammar.**
-Most random strings of amino acids will not fold into stable structures.
-They aggregate, misfold, or fail to function.
-The sequences we observe in nature have passed through the filter of natural selection, which permits only "grammatically correct" protein sentences to survive.
-This is analogous to the observation that most random strings of English letters do not form valid sentences.
-
-**Context determines meaning.**
-The same amino acid plays different roles depending on its neighbors.
-A hydrophobic[^hydrophobic] residue buried in the protein core contributes to thermodynamic stability.
-The same residue on the protein surface might create a binding interface[^bindinginterface] for a partner protein.
-Histidine can act as a catalytic acid-base in an enzyme active site[^activesite], coordinate a metal ion, or play a purely structural role---all depending on its sequence context.
-
-[^hydrophobic]: **Hydrophobic** (literally "water-fearing") amino acids have nonpolar side chains that avoid contact with water. When a protein folds, these residues cluster together in the interior, forming a **hydrophobic core** --- the dominant driving force of protein folding.
-
-[^bindinginterface]: A **binding interface** is the surface region where two molecules make physical contact. The amino acids at this interface determine binding specificity and strength through complementary shape, charge, and hydrophobic interactions.
-
-[^activesite]: An **active site** is the small region of an enzyme where the chemical reaction takes place. It typically consists of a handful of precisely positioned residues (called catalytic residues) that stabilize the transition state of the reaction.
-
-**Conservative substitutions are synonyms.**
-Leucine and isoleucine are both large, branched, hydrophobic amino acids.
-In many sequence positions, one can replace the other without destroying function, just as "big" and "large" can often substitute for each other in English.
-This is not random; it reflects the underlying biochemistry, the *semantics* of the protein language.
-
-**Co-evolution mirrors co-occurrence.**
-In English, "salt" frequently co-occurs with "pepper."
-In proteins, pairs of residues that are in physical contact in the three-dimensional structure tend to mutate in a correlated fashion[^dca].
-If one partner changes, the other compensates to maintain the interaction.
-This co-evolutionary signal is the protein equivalent of word co-occurrence statistics.
-
-[^dca]: This principle underlies direct coupling analysis (DCA) and related evolutionary coupling methods that predate deep learning approaches to contact prediction.
-
-The following table summarizes the correspondence:
-
-| Natural Language | Protein Language |
-|---|---|
-| Words / tokens | Amino acids |
-| Sentences | Protein sequences |
-| Grammar rules | Biochemical and physical constraints |
-| Semantics (meaning) | Three-dimensional structure and function |
-| Synonyms | Functionally equivalent substitutions (e.g., Leu / Ile) |
-| Word co-occurrence | Co-evolution of contacting residues |
-| Corpus of text | Protein sequence databases (UniProt, UniRef) |
-
-This structural parallel suggests a concrete research strategy: apply the same machine learning techniques that have transformed natural language processing to protein sequences.
-As we will see, the results exceed what the analogy alone might lead us to expect.
-
----
-
-## 2. Learning from Billions of Evolutionary Experiments
-
-Why should a model trained to fill in missing amino acids learn anything useful about protein biology?
-
-The answer lies in what the training data actually represents.
-The UniProt database contains over 200 million protein sequences, and metagenomic surveys are adding billions more.
-Each of these sequences is the outcome of a successful evolutionary experiment---a design that folds, functions, and keeps its organism alive.
-The sequences that failed these tests are absent from our databases because their organisms did not survive.
-
-When a model sees thousands of sequences from a single protein family, it observes statistical regularities that reflect genuine biological constraints:
-
-- **Absolute conservation.** Some positions never change across the entire family.
-  These are almost always critical for structure or function---active-site residues, disulfide-bonding cysteines[^disulfide], glycine residues in tight turns.
-
-[^disulfide]: A **disulfide bond** is a covalent link (S--S) between the sulfur atoms of two cysteine residues. These bonds act like molecular staples, locking parts of the protein together and stabilizing the folded structure, especially in extracellular proteins exposed to harsh environments.
-- **Constrained variation.** Some positions vary, but only within a restricted class of amino acids.
-  A position that accepts leucine, isoleucine, and valine---but never aspartate---is almost certainly in the hydrophobic core of the protein.
-- **Correlated variation.** Some positions change *together*.
-  When residue 42 mutates from a small side chain to a large one, residue 108 compensates by mutating from large to small.
-  This co-evolutionary signal reveals that the two positions are in spatial contact[^coevolution-structure].
-
-[^coevolution-structure]: The connection between co-evolution and structural contact was exploited by methods such as EVcouplings and GREMLIN before the deep learning era. Protein language models learn the same signal implicitly.
-
-The model does not need to be told about any of these concepts.
-It discovers them by learning to predict masked amino acids accurately.
-This is the core insight of self-supervised learning applied to biology: the sequences themselves contain the supervision.
-
-The scale of available data makes this approach particularly powerful.
-Hundreds of millions of protein sequences represent far more training data than exists for most natural language tasks.
-Each sequence is the product of a distinct evolutionary lineage, providing diverse perspectives on what works in protein design.
-By learning from this vast corpus, protein language models capture knowledge that would be impossible to encode by hand.
-
----
-
-## 3. Masked Language Modeling
-
-<div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mlm_protein_illustration.png' | relative_url }}" alt="Masked language modeling for protein sequences">
-    <div class="caption mt-1"><strong>Masked Language Modeling for proteins.</strong> Random amino acid positions are replaced with [MASK] tokens. The transformer encoder must predict the original identity at each masked position from the surrounding context. This self-supervised objective teaches the model evolutionary and structural constraints without any labels.</div>
-</div>
 
 <div class="col-sm-8 mt-3 mb-3 mx-auto">
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/papers/mlife_zhou2024_fig2.jpg' | relative_url }}" alt="Three types of protein language models">
@@ -279,15 +157,11 @@ Each position is influenced by context on *both* sides, not just the left.
 
 ---
 
-## 4. ESM-2 Architecture and Model Family
+## 2. ESM-2 Architecture and Model Family
 
 **ESM-2** (Evolutionary Scale Modeling 2), developed by researchers at Meta AI, is the current state of the art among protein language models <sup id="cite-b1"><a href="#ref-b">[b]</a></sup>.
 It combines the Transformer architecture with large-scale training on protein sequence databases, producing representations that capture evolutionary, structural, and functional information.
 
-<div class="col-sm-9 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/esm2_model_sizes.png' | relative_url }}" alt="ESM-2 model family sizes and performance">
-    <div class="caption mt-1">The ESM-2 model family spans four orders of magnitude in size, from 8M to 15B parameters. Performance on downstream tasks (here, long-range contact prediction precision) improves steadily with model scale, following a scaling law consistent with findings in natural language processing.</div>
-</div>
 
 ### Training data
 
@@ -387,27 +261,10 @@ The model is never told about structure, function, or conservation; it discovers
 
 ---
 
-## 5. Extracting and Using Embeddings
+## 3. Extracting ESM-2 Embeddings
 
-<div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/blog/malina_prottrans_pipeline.png' | relative_url }}" alt="Pretrained protein language models used as feature extractors for per-residue and per-protein tasks">
-    <div class="caption mt-1"><strong>Protein LMs as feature extractors.</strong> A pretrained model (trained with MLM, autoregressive, or seq2seq objectives) produces embeddings that are fed to lightweight task heads for per-residue predictions (secondary structure, binding sites) or per-protein predictions (localization, function). Source: Elnaggar et al., ProtTrans (2022).</div>
-</div>
-
-One of the most practical applications of ESM-2 is **embedding extraction**: passing a protein sequence through the model and collecting the internal representations for use in downstream tasks.
-
-### Per-residue embeddings
-
-For a protein of length $$L$$ processed by the 650M model, we obtain a matrix of shape $$(L, 1280)$$: one 1280-dimensional vector for each amino acid position.
-Each vector encodes information about that residue in the context of the full sequence.
-
-### Sequence-level embeddings
-
-For tasks that require a single vector representing the entire protein (e.g., subcellular localization prediction, function classification), we need a **pooling** strategy to aggregate the $$L$$ per-residue vectors into one.
-The simplest and most common approach is **mean pooling**: averaging across all residue positions.
-Alternatives include using the embedding of a special beginning-of-sequence (BOS) token, or attention-weighted pooling that gives higher weight to "important" positions.
-
-### Code: extracting ESM-2 embeddings
+For a protein of length $$L$$ processed by the 650M model, the output is a matrix of shape $$(L, 1280)$$: one 1280-dimensional vector for each amino acid position.
+A single summary vector for the whole sequence is obtained by mean pooling across residue positions.
 
 ```python
 import torch
@@ -474,33 +331,10 @@ In many benchmarks, simply training a logistic regression on ESM-2 mean-pooled e
 
 ---
 
-## 6. Zero-Shot Mutation Prediction
+## 4. Zero-Shot Mutation Scoring
 
-Perhaps the most striking capability of protein language models is **zero-shot prediction of mutational effects**.
-Without any fine-tuning or task-specific labels, ESM-2 can estimate whether a single amino acid substitution is likely to be beneficial, neutral, or deleterious.
-
-### The intuition
-
-The model has learned the distribution of natural, functional protein sequences.
-A mutation that pushes a sequence *away* from this distribution---into regions of sequence space that evolution has avoided---is likely to be harmful.
-A mutation that keeps the sequence *within* the distribution is likely to be tolerated.
-
-### The procedure
-
-Let $$s$$ be the wild-type sequence, and suppose we want to score the mutation from amino acid $$a_{\text{wt}}$$ to $$a_{\text{mut}}$$ at position $$i$$.
-
-1. **Mask** position $$i$$ in the sequence, replacing it with the `<mask>` token.
-2. **Run** the masked sequence through the model to obtain predicted probabilities over the 20 amino acids at position $$i$$.
-3. **Compare** the log-probability of the mutant amino acid to the log-probability of the wild-type amino acid:
-
-$$
-\Delta_{\text{score}} = \log p_{\theta}(a_{\text{mut}} \mid s_{\setminus i}) - \log p_{\theta}(a_{\text{wt}} \mid s_{\setminus i})
-$$
-
-A positive score means the model considers the mutant amino acid *more likely* than the wild type at that position, suggesting the mutation may be tolerated or even beneficial.
-A negative score means the mutation moves away from the learned evolutionary distribution, suggesting it may be deleterious.
-
-### Code: scoring a single mutation
+The procedure for zero-shot mutation prediction was described conceptually in Lecture 5.
+The implementation is straightforward: mask the position of interest, run the forward pass, and compare log-probabilities.
 
 ```python
 import torch
@@ -549,41 +383,19 @@ def predict_mutation_effect(sequence, position, original_aa, mutant_aa,
     return (log_probs[mt_idx] - log_probs[wt_idx]).item()
 ```
 
-### Why does this work?
-
-The model has absorbed the outcomes of hundreds of millions of evolutionary experiments.
-At any given position, it has seen which amino acids appear across all known homologs[^homolog] and which are absent.
-
-[^homolog]: **Homologs** are proteins (or genes) that share a common evolutionary ancestor. They typically have detectable sequence similarity and often share the same overall fold, even if their sequences have diverged substantially over millions of years.
-Mutations to amino acids that never appear at a position in any natural sequence receive low probability and negative scores.
-Mutations to amino acids that are common at that position receive high probability and scores near zero or positive.
-
-This captures the essence of evolutionary constraint.
-Studies have shown that ESM-2 zero-shot scores correlate well with experimentally measured mutational fitness values from deep mutational scanning[^dms] (DMS) experiments <sup id="cite-e"><a href="#ref-e">[e]</a></sup>.
-
-[^dms]: **Deep mutational scanning** (DMS) is an experimental technique that systematically measures the effect of every possible single amino acid substitution at every position in a protein. The result is a comprehensive "fitness landscape" --- a matrix showing how each mutation affects function, stability, or some other measurable property.
-In many cases, the zero-shot predictor matches or exceeds the performance of supervised methods trained directly on experimental data.
-
-### Practical significance
-
-Experimental measurement of mutational effects is expensive and slow.
-A typical DMS experiment covers all single-point mutations of a single protein, requires specialized equipment, and can take months.
-Zero-shot pLM scoring provides an instant, free estimate that can:
-
-- Prioritize mutations for experimental testing.
-- Flag potentially harmful variants in clinical genomics.
-- Guide protein engineering campaigns toward productive regions of sequence space.
+A positive score means the model considers the mutant amino acid *more likely* than the wild type at that position.
+A negative score suggests the mutation is deleterious.
+Studies have shown that these scores correlate well with experimentally measured fitness values from deep mutational scanning experiments <sup id="cite-e"><a href="#ref-e">[e]</a></sup>.
 
 ---
 
-## 7. Fine-Tuning for Specific Tasks
+## 5. Fine-Tuning Classifiers
 
-While zero-shot capabilities are impressive, **fine-tuning** ESM-2 on task-specific labeled data can further improve performance.
-Fine-tuning adapts the pretrained representations to a particular problem, learning which aspects of the embeddings are most relevant for the task at hand.
+Fine-tuning adapts pretrained ESM-2 representations to a specific task by adding a lightweight classification head and optionally updating the backbone.
 
 ### Sequence classification
 
-For tasks that assign a single label to an entire protein---such as predicting subcellular localization, enzyme class, or thermostability---we add a **classification head** on top of the mean-pooled ESM-2 embedding:
+For tasks that assign a single label to an entire protein---subcellular localization, enzyme class, thermostability---a classification head operates on the mean-pooled embedding:
 
 ```python
 import torch.nn as nn
@@ -623,7 +435,7 @@ class ESMClassifier(nn.Module):
 
 ### Per-residue prediction
 
-For tasks that require a prediction at every position---such as secondary structure classification (helix / sheet / coil) or binding-site identification---we apply a classifier independently to each residue embedding:
+For tasks that require a prediction at every position---secondary structure (helix / sheet / coil), binding-site detection, disorder prediction---a classifier is applied independently to each residue embedding:
 
 ```python
 class ESMTokenClassifier(nn.Module):
@@ -650,17 +462,15 @@ class ESMTokenClassifier(nn.Module):
 
 ### Full fine-tuning versus frozen backbone
 
-Two strategies exist for fine-tuning:
+Two strategies bound the spectrum.
+Freezing all ESM-2 parameters and training only the classification head is fast and memory-efficient, but the representations are not adapted to the task.
+Full fine-tuning---updating all parameters---typically gives the best accuracy but is expensive and risks catastrophic forgetting.
 
-1. **Frozen backbone.** Freeze all ESM-2 parameters and train only the classification head. This is fast and requires minimal GPU memory, but the representations are not adapted to the task.
-2. **Full fine-tuning.** Update all parameters, including the ESM-2 backbone. This typically gives the best performance but is computationally expensive and risks **catastrophic forgetting**: the model may lose its general-purpose capabilities as it overfits to the small task-specific dataset.
-
-In practice, a middle ground often works best: freeze most of the ESM-2 layers and fine-tune only the last few, along with the classification head.
-Or, better yet, use LoRA.
+A practical middle ground: freeze most layers and fine-tune the last few, or use LoRA.
 
 ---
 
-## 8. LoRA: Efficient Adaptation
+## 6. LoRA: Efficient Adaptation
 
 <div class="col-sm mt-3 mb-3 mx-auto">
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-06-protein-language-models_diagram_1.png' | relative_url }}" alt="LoRA versus standard fine-tuning: standard updates all parameters of weight matrix W, while LoRA freezes W and adds a low-rank decomposition BA">
@@ -819,10 +629,7 @@ Tasks that once required clusters of A100 GPUs can now be performed on a single 
 
 ---
 
-## 9. ESMFold: From Embeddings to Structure
-
-The ultimate test of whether a language model truly "understands" proteins is whether its representations contain enough information to predict three-dimensional structure.
-**ESMFold** demonstrates that they do <sup id="cite-b2"><a href="#ref-b">[b]</a></sup>.
+## 7. ESMFold: Architecture and Code
 
 ### Architecture
 
@@ -833,12 +640,7 @@ The ultimate test of whether a language model truly "understands" proteins is wh
 ESMFold takes a protein sequence, passes it through the ESM-2 backbone to produce per-residue embeddings, and then feeds those embeddings into a structure prediction module that generates atomic coordinates.
 The structure module is similar to the one used in AlphaFold2, operating on pairwise representations and iteratively refining coordinates.
 
-### The key difference from AlphaFold2
-
-AlphaFold2 requires a **multiple sequence alignment** (MSA) as input: a collection of evolutionary relatives of the query protein, aligned position by position (covered in detail in Lecture 6, AlphaFold).
-Constructing this MSA is computationally expensive, often taking minutes to hours for a single protein.
-
-ESMFold requires only a **single sequence**.
+The key difference from AlphaFold2: ESMFold requires only a **single sequence**, not a multiple sequence alignment (MSA).
 The ESM-2 embeddings already encode the evolutionary information that AlphaFold2 extracts from the MSA, because the language model has internalized this information during pretraining.
 This makes ESMFold dramatically faster---seconds per structure instead of minutes.
 
@@ -886,7 +688,7 @@ The grammar of proteins is inseparable from their physics.
 
 ---
 
-## 10. Attention Maps as Structure Windows
+## 8. Attention Maps as Structure Windows
 
 The attention mechanism in ESM-2 is not just a computational tool; it provides an **interpretable window** into what the model has learned.
 
@@ -898,15 +700,6 @@ Positions that are close in space (within about 8 Angstroms) tend to attend stro
 
 This means the model has discovered, purely from sequence statistics, the same principle that underlies evolutionary coupling analysis: co-evolving residues are in structural contact.
 
-<div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/attention_vs_contacts.png' | relative_url }}" alt="ESM attention map vs true contact map">
-    <div class="caption mt-1"><strong>Attention weights predict structural contacts.</strong> Left: true residue-residue contact map from a crystal structure. Center: attention weights from ESM-2, averaged across heads. Right: overlay showing that high-attention pairs correspond to true long-range contacts. The model discovers 3D proximity from sequence data alone.</div>
-</div>
-
-<div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/esm_contact_prediction.png' | relative_url }}" alt="ESM-2 attention correlates with structural contacts">
-    <div class="caption mt-1"><strong>Attention as structure predictor.</strong> Left: ESM-2 attention map (averaged over heads and layers) for a 50-residue protein. Right: true structural contacts (8 Å threshold). The strong correspondence demonstrates that protein language models learn to encode 3D structural information purely from sequence statistics.</div>
-</div>
 
 ### Code: extracting and processing attention maps
 
@@ -982,105 +775,35 @@ No structural supervision is provided.
 
 ---
 
-## 11. The Broader pLM Landscape
-
-ESM-2 is the most widely used protein language model, but it is not the only one.
-Several alternatives exist, each with distinct strengths.
-
-**ProtTrans** <sup id="cite-d"><a href="#ref-d">[d]</a></sup>, developed at the Technical University of Munich, offers models based on multiple Transformer architectures---BERT, ALBERT, XLNet, and T5.
-The **ProtT5-XL** variant has been particularly popular for per-residue prediction tasks, offering a good balance of performance and efficiency with its encoder-decoder architecture.
-
-**ProGen** and **ProGen2**, developed at Salesforce, use **autoregressive** modeling (left-to-right generation, like GPT).
-This makes them especially effective for *protein design* and *sequence generation* tasks, where sampling new sequences from the learned distribution is the goal.
-
-**ProtGPT2** follows a similar autoregressive strategy and has been shown to generate novel protein sequences that fold into stable structures, as validated by AlphaFold2 predictions.
-
-**Ankh**, developed at TU Munich, offers efficient training strategies that achieve competitive performance with significantly less compute than ESM-2, making pretraining more accessible to resource-constrained groups.
-
-**ProteinBERT**, developed at Google, incorporates Gene Ontology (GO) annotations during pretraining.
-By jointly predicting masked amino acids and GO terms, it explicitly learns functional information alongside sequence patterns.
-
-| Model | Training objective | Key strength |
-|---|---|---|
-| ESM-2 | Masked LM | General-purpose embeddings, wide size range |
-| ProtT5-XL | Span denoising (T5-style) | Per-residue tasks, encoder-decoder flexibility |
-| ProGen / ProGen2 | Autoregressive LM | Sequence generation and design |
-| Ankh | Masked LM | Compute-efficient pretraining |
-| ProteinBERT | Masked LM + GO prediction | Function-aware representations |
-
-For general-purpose embedding extraction, ESM-2 remains the default choice due to its strong benchmark performance and the availability of models at multiple scales.
-For generation tasks, autoregressive models such as ProGen2 are more natural.
-
----
-
-## 12. Practical Considerations
-
-Deploying protein language models in a research workflow involves several practical choices.
-
-### Model size selection
-
-- **8M / 35M**: Fast inference, CPU-friendly. Good for pipeline prototyping and debugging.
-- **150M**: Reasonable performance at low cost. Suitable when GPU resources are limited.
-- **650M**: The recommended default. Fits on a single GPU with 4+ GB VRAM for inference, ~16 GB for LoRA fine-tuning.
-- **3B / 15B**: Marginal gains over 650M on most tasks. Use when accuracy is paramount and multi-GPU resources are available.
-
-### Sequence length
-
-ESM-2 was trained on sequences up to **1024 amino acids**.
-Longer sequences require one of three strategies:
-
-1. **Truncation**: Use only the first 1022 residues (leaving room for BOS/EOS tokens). Information beyond the cutoff is lost.
-2. **Chunking**: Split the sequence into overlapping windows, embed each window, and merge the results. Residues in overlapping regions can be averaged.
-3. **Longer-context models**: Some newer models support longer sequences natively.
-
-### GPU memory budget
-
-| Model | Inference (approx.) | LoRA fine-tuning (approx.) | Full fine-tuning (approx.) |
-|---|---|---|---|
-| ESM-2 35M | < 1 GB | ~2 GB | ~4 GB |
-| ESM-2 150M | ~1 GB | ~4 GB | ~8 GB |
-| ESM-2 650M | ~2.5 GB | ~8 GB | ~24 GB |
-| ESM-2 3B | ~12 GB | ~24 GB | ~80 GB+ |
-
-### Batch processing
-
-When embedding many sequences, group them by length and pad within each batch.
-The ESM library's `batch_converter` handles this automatically, but custom pipelines should be careful to avoid excessive padding, which wastes compute.
-
-### Reproducibility
-
-Set random seeds (`torch.manual_seed`, `numpy.random.seed`) and use deterministic CUDA operations (`torch.use_deterministic_algorithms(True)`) when comparing methods.
-This is especially important for fine-tuning experiments where small differences in initialization can lead to different results.
-
----
-
 ## Key Takeaways
 
-1. **Proteins are a language** with amino acids as tokens, sequences as sentences, and evolutionary constraints as grammar. This structural parallel justifies applying NLP techniques to protein sequences.
+1. **Masked language modeling** learns rich representations from raw sequences without any labels. By predicting masked amino acids, the model implicitly discovers conservation, co-evolution, secondary structure, and functional motifs.
 
-2. **Masked language modeling** learns rich representations from raw sequences without any labels. By predicting masked amino acids, the model implicitly discovers conservation, co-evolution, secondary structure, and functional motifs.
+2. **ESM-2's transformer architecture** incorporates rotary position embeddings (for length generalization), pre-layer normalization (for training stability), and SwiGLU activations (for expressive feedforward layers). The 650M model provides the best performance-cost tradeoff.
 
-3. **ESM-2** is the current state-of-the-art protein language model, available in sizes from 8M to 15B parameters. The 650M model offers the best performance-cost tradeoff for most applications.
+3. **Embedding extraction** is straightforward: a forward pass through ESM-2 yields per-residue vectors (shape $$L \times 1280$$) and a mean-pooled sequence vector. These serve as drop-in features for any downstream predictor.
 
-4. **ESM-2 embeddings** encode evolutionary, structural, and functional information. They serve as powerful drop-in features for downstream prediction tasks.
+4. **Zero-shot mutation scoring** computes a log-likelihood ratio at a masked position. Positive scores suggest tolerated mutations; negative scores suggest deleterious ones. No task-specific training is needed.
 
-5. **Zero-shot mutation prediction** requires no task-specific training. The log-likelihood ratio at a masked position estimates mutational fitness, often matching supervised methods.
+5. **Fine-tuning** adds a classification head (sequence-level or per-residue) on top of ESM-2 embeddings. Freezing the backbone is fast but suboptimal; full fine-tuning is expensive and risks catastrophic forgetting.
 
-6. **LoRA** reduces trainable parameters to less than 1% of the original model, making fine-tuning accessible on consumer GPUs without catastrophic forgetting.
+6. **LoRA** decomposes weight updates into low-rank matrices ($$BA$$), reducing trainable parameters to less than 1% of the original model. This makes fine-tuning feasible on consumer GPUs and eliminates catastrophic forgetting.
 
-7. **ESMFold** demonstrates that language model embeddings contain sufficient information to predict three-dimensional protein structure from a single sequence.
+7. **ESMFold** feeds ESM-2 embeddings into a structure module to predict 3D coordinates from a single sequence, bypassing the expensive MSA computation that AlphaFold2 requires.
 
-8. **Attention maps** correlate with structural contacts, revealing that the model has discovered the connection between co-evolution and spatial proximity.
+8. **Attention maps** correlate with structural contacts. Different heads specialize in sequential proximity, long-range contacts, and secondary structure periodicity---all discovered from the MLM objective alone.
 
 ---
 
 <div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
-<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/11-nano-esm2/' | relative_url }}">nano-esm2 code walkthrough</a> implements this lecture's architecture from scratch in 288 lines of PyTorch. Two files, no abstractions — fork it, break it, learn from it.
+<strong>Build it yourself:</strong> The <a href="{{ '/lectures/15-nano-esm2/' | relative_url }}">nano-esm2 code walkthrough</a> implements this lecture's architecture from scratch in 288 lines of PyTorch. Two files, no abstractions—fork it, break it, learn from it.<br><br>
+<strong>Tasks and applications:</strong> <a href="{{ '/lectures/07-plm-tasks/' | relative_url }}">Lecture 5 (PLM Tasks)</a> covers what pLMs achieve—the protein-language analogy, zero-shot scoring use cases, clinical variant interpretation, and the ESM Metagenomic Atlas.
 </div>
 
 ## Further Reading
 
-- **Code walkthrough:** [nano-esm2]({{ '/lectures/11-nano-esm2/' | relative_url }}) — build ESM2 from scratch in 288 lines of PyTorch
+- **Tasks companion:** [Lecture 5: PLM Tasks and Applications]({{ '/lectures/07-plm-tasks/' | relative_url }}) — what pLMs learn and how they are used in practice
+- **Code walkthrough:** [nano-esm2]({{ '/lectures/15-nano-esm2/' | relative_url }}) — build ESM2 from scratch in 288 lines of PyTorch
 - Stephen Malina, ["Protein Language Models (Part 1)"](https://stephenmalina.com/post/2023-07-22-protein-language-models-part-1/) and ["Part 2"](https://stephenmalina.com/post/2023-08-05-protein-language-models-part-2/) — comprehensive review of PLM architectures (ESM-1b, ESM-2, UniRep, CARP) and their scaling behavior.
 - Evolutionary Scale, ["ESM Cambrian"](https://www.evolutionaryscale.ai/blog/esm-cambrian) — official blog on unsupervised protein representation learning at evolutionary scale.
 - Evolutionary Scale, ["ESM3: Simulating 500 Million Years of Evolution"](https://www.evolutionaryscale.ai/blog/esm3-release) — multimodal protein language modeling across sequence, structure, and function.
@@ -1098,4 +821,3 @@ This is especially important for fine-tuning experiments where small differences
 <p id="ref-e"><a href="#cite-e">[e]</a> Meier, J., Rao, R., Verkuil, R., Liu, J., Sercu, T., & Rives, A. (2021). Language models enable zero-shot prediction of the effects of mutations on protein function. <em>Advances in Neural Information Processing Systems (NeurIPS)</em>, 34, 29287–29303.</p>
 
 ---
-

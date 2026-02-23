@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-esm2"
-date: 2026-03-25
 description: "Build ESM2 from scratch in 288 lines of PyTorch — masked language modeling for protein sequences."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
@@ -20,7 +19,7 @@ related_posts: false
 </div>
 
 <p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;">
-<em>Companion to <a href="{{ '/lectures/07-protein-language-models/' | relative_url }}">Lecture: Protein Language Models</a>. The lecture covers the theory; this page builds it from scratch.</em>
+<em>Companion to <a href="{{ '/lectures/08-plm-implementation/' | relative_url }}">Lecture: Protein Language Models — Architecture and Training</a>. The lecture covers the theory; this page builds it from scratch.</em>
 </p>
 
 You know how GPT learns language by predicting the next word? ESM2 does the same thing for proteins, except it fills in the blanks -- BERT-style. Mask out some amino acids, ask the model to guess them from context, and the representations it builds along the way encode deep biological knowledge: which residues are structurally important, which substitutions are tolerable, even hints of 3D structure. All from sequence alone.

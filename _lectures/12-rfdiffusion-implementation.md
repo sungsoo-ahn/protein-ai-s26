@@ -1,12 +1,11 @@
 ---
 layout: post
-title: "RFDiffusion: De Novo Protein Structure Generation"
-date: 2026-04-01
-description: "How diffusion models on SE(3) frames enable the computational design of novel protein backbones, from the mathematics of rotational noise to conditional scaffold generation."
+title: "RFDiffusion: SE(3) Diffusion for Protein Backbones"
+description: "The mathematics of structure generation—rotation representations, IGSO(3) noise, SE(3) equivariant networks, and the RFDiffusion architecture for de novo protein backbone design."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 7
+lecture_number: 14
 preliminary: false
 toc:
   sidebar: left
@@ -14,52 +13,37 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 7 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. The lecture builds on the diffusion model foundations introduced in Lecture 4 (Diffusion Models) and the structure prediction concepts from Lecture 6 (AlphaFold). Of all the lectures in this course, this one is the most mathematically intensive, requiring careful treatment of Lie groups, manifold-valued noise processes, and equivariant neural network design.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 10 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST. This is the most mathematically intensive lecture in the course: it requires careful treatment of Lie groups, manifold-valued noise processes, and equivariant neural network design. It serves as the implementation companion to Lecture 9 (Protein Backbone Design) and builds on diffusion model foundations from Lecture 4 and structure prediction concepts from Lecture 8.</em></p>
 
-## Introduction: The Dream of De Novo Protein Design
+## Introduction
 
-For decades, protein engineers have faced a fundamental asymmetry.
-Predicting how a known sequence folds into a three-dimensional structure is now largely solved, thanks to AlphaFold and related methods (Lecture 6).
-But the reverse problem --- designing an entirely new protein that folds into a desired shape and performs a specified function --- has remained far more difficult.
+Lecture 9 framed the protein backbone design problem and showed why controlling three-dimensional shape gives control over biological function.
+It surveyed the practical design pipeline --- RFDiffusion for backbone generation, ProteinMPNN for sequence design, AlphaFold2 for validation --- and catalogued the experimental successes: novel folds, functional binders, symmetric assemblies.
 
-Consider the contrast with other engineering disciplines.
-A civil engineer does not begin by finding a bridge in nature and copying it.
-She specifies the span, the load, and the material constraints, then designs a structure that meets those requirements.
-De novo protein design aspires to the same workflow: specify what you want the protein to do, then compute a structure that accomplishes it.
+This lecture develops the mathematical and computational machinery underneath.
+The central questions are: how do you represent protein geometry in a way that respects physical symmetry? how do you define noise on a curved manifold of rotations? and how do you build a neural network that generates protein backbones while satisfying SE(3) equivariance by construction?
 
-In July 2023, a team led by David Baker at the University of Washington published **RFDiffusion**, a method that brought this aspiration within reach <sup id="cite-a1"><a href="#ref-a">[a]</a></sup>.
-RFDiffusion generates novel protein backbones by learning to reverse a noise process --- the same core idea behind image generation models like DALL-E and Stable Diffusion, but adapted for the unique geometric constraints of molecular structures.
-The designed proteins were not theoretical curiosities: when synthesized in the laboratory, they folded into the predicted structures and performed their intended functions.
-
-What makes the method technically distinctive is its treatment of geometry.
-A protein backbone is not an image or a point cloud.
-Each amino acid residue carries both a position and an orientation, and the physics of the molecule is unchanged if you rotate or translate the entire structure.
-Handling these geometric properties correctly requires mathematical machinery from Lie group theory --- specifically, the groups $$SO(3)$$ (rotations) and $$SE(3)$$ (rotations plus translations).
-
-This lecture develops that machinery from the ground up, shows how it leads to a principled diffusion process on protein frames, and explains how the resulting model can be conditioned to solve practical design problems.
+The answers draw on Lie group theory ($$SO(3)$$ and $$SE(3)$$), differential geometry (the IGSO(3) distribution as a Gaussian analogue on a manifold), and equivariant neural network design (invariant features, local-frame updates).
+The reward is a generative model that produces physically valid protein geometries at every step, without post-hoc corrections.
 
 ### Roadmap
 
-The following table maps each section of this lecture to the question it answers.
-
 | Section | Topic | Why It Is Needed |
 |---------|-------|-----------------|
-| 2 | SE(3) equivariance | Proteins are geometric objects; a model that ignores this wastes data and generalizes poorly |
-| 3 | Rotation representations | Before diffusing rotations, we need a numerically stable way to represent them |
-| 4 | Frame representation | Each residue is a rigid body; frames are the natural state space for protein backbones |
-| 5 | IGSO(3) distribution | Standard Gaussian noise is undefined on the rotation manifold; IGSO(3) fills this gap |
-| 6 | SE(3) diffusion process | Combining translational and rotational noise into a single forward process |
-| 7 | Equivariant neural networks | The denoiser must respect SE(3) symmetry by construction |
-| 8 | RFDiffusion architecture | How RoseTTAFold is adapted from structure prediction to structure generation |
-| 9 | Conditional generation | Motif scaffolding, binder design, and other practical applications |
-| 10 | Training and loss functions | How the model learns to denoise on SE(3) |
-| 11 | Sampling and generation | The reverse process that produces novel protein backbones |
-| 12 | Experimental validation | Evidence that the designed proteins actually work |
-| 13 | Key takeaways | Summary of the main ideas and design principles |
+| 1 | SE(3) equivariance | Proteins are geometric objects; a model that ignores this wastes data and generalizes poorly |
+| 2 | Rotation representations | Before diffusing rotations, we need a numerically stable way to represent them |
+| 3 | Frame representation | Each residue is a rigid body; frames are the natural state space for protein backbones |
+| 4 | IGSO(3) distribution | Standard Gaussian noise is undefined on the rotation manifold; IGSO(3) fills this gap |
+| 5 | SE(3) diffusion process | Combining translational and rotational noise into a single forward process |
+| 6 | Equivariant neural networks | The denoiser must respect SE(3) symmetry by construction |
+| 7 | RFDiffusion architecture | How RoseTTAFold is adapted from structure prediction to structure generation |
+| 8 | Conditional generation | Implementation of motif scaffolding, self-conditioning, and classifier-free guidance |
+| 9 | Training and loss functions | How the model learns to denoise on SE(3) |
+| 10 | Sampling and generation | The reverse process that produces novel protein backbones |
 
 ---
 
-## 2. Why Geometry Matters: The Case for SE(3) Equivariance
+## 1. Why Geometry Matters: The Case for SE(3) Equivariance
 
 ### Proteins Do Not Have a Preferred Orientation
 
@@ -123,13 +107,13 @@ This makes the representations more interpretable and more likely to capture phy
 
 ---
 
-## 3. The Language of Rotations
+## 2. The Language of Rotations
 
-Before we can add noise to the orientation of a protein residue, we need a concrete way to represent rotations.
+Before adding noise to the orientation of a protein residue, we need a concrete way to represent rotations.
 This turns out to be more subtle than it first appears, and the choice of representation has significant consequences for numerical stability.
 
 A rotation in three dimensions has **three degrees of freedom**.
-You can think of these as the three angles needed to orient a rigid body: pitch, yaw, and roll.
+The three angles needed to orient a rigid body: pitch, yaw, and roll.
 Yet the four most common representations use different numbers of parameters.
 
 ### Rotation Matrices
@@ -234,7 +218,7 @@ The extra parameter (four instead of three) buys important benefits: quaternions
 They also have a double-cover property --- $$q$$ and $$-q$$ represent the same rotation --- which must be handled carefully but is not a practical obstacle.
 
 RFDiffusion uses quaternions internally for numerical stability.
-Here is the conversion between quaternions and rotation matrices:
+The conversion between quaternions and rotation matrices:
 
 ```python
 def quaternion_to_rotation_matrix(q):
@@ -290,7 +274,7 @@ def rotation_matrix_to_quaternion(R):
 
 ---
 
-## 4. Each Amino Acid Has Its Own Coordinate System
+## 3. Each Amino Acid Has Its Own Coordinate System
 
 ### The Frame Representation
 
@@ -422,7 +406,7 @@ This non-commutativity is a fundamental feature of $$SE(3)$$ and has direct cons
 
 ---
 
-## 5. Diffusion Meets Geometry: The IGSO(3) Distribution
+## 4. Diffusion Meets Geometry: The IGSO(3) Distribution
 
 ### The Challenge of Adding Noise to Rotations
 
@@ -443,7 +427,7 @@ But rotations live on a *manifold*[^manifold] --- a space that is locally flat (
 You cannot "add" Gaussian noise to a rotation matrix and expect the result to remain a valid rotation.
 The matrix $$R + \epsilon$$ (with $$\epsilon$$ drawn from a matrix-valued Gaussian) is not orthogonal, does not have determinant one, and does not represent a rotation at all.
 
-We need a noise distribution that is native to the rotation manifold.
+A noise distribution native to the rotation manifold is needed.
 
 ### The Isotropic Gaussian on SO(3)
 
@@ -529,10 +513,9 @@ There is no preferred direction of perturbation, just as standard Gaussian noise
 
 ---
 
-## 6. The Complete SE(3) Diffusion Process
+## 5. The Complete SE(3) Diffusion Process
 
-With the IGSO(3) distribution in hand, we can define the full forward diffusion process for protein frames.
-The process treats the translational and rotational components separately, using the appropriate noise distribution for each.
+With the IGSO(3) distribution in hand, the full forward diffusion process for protein frames treats the translational and rotational components separately, using the appropriate noise distribution for each.
 
 ### Translational Diffusion
 
@@ -565,7 +548,7 @@ def diffuse_translations(translations, t, noise_schedule):
 
 ### Rotational Diffusion
 
-Rotations live on $$SO(3)$$, so we use IGSO(3).
+Rotations live on $$SO(3)$$, so IGSO(3) is used instead.
 Given a clean rotation $$R_0$$ and a noise level $$\sigma_t$$, the noisy rotation is obtained by composing $$R_0$$ with a random rotation sampled from IGSO(3):
 
 $$
@@ -695,11 +678,11 @@ The neural network's job is to learn the reverse of this process: given a noisy 
 
 ---
 
-## 7. Building Equivariant Neural Networks
+## 6. Building Equivariant Neural Networks
 
 ### The Core Principle
 
-We need a neural network that takes noisy protein frames and produces denoised frames, while satisfying SE(3) equivariance.
+The denoiser takes noisy protein frames and produces denoised frames, while satisfying SE(3) equivariance.
 The design principle is:
 
 > **Compute using invariant features. Apply results in local coordinate frames.**
@@ -790,7 +773,7 @@ This angle is invariant: rotating the entire protein changes both $$R_i$$ and $$
 
 ### An Equivariant Convolution Layer
 
-With invariant edge features in hand, we can build a message-passing layer that updates both node features and positions equivariantly:
+With invariant edge features in hand, a message-passing layer updates both node features and positions equivariantly:
 
 ```python
 class SE3EquivariantConv(nn.Module):
@@ -873,13 +856,13 @@ class SE3EquivariantConv(nn.Module):
 ```
 
 The equivariance guarantee comes from the position update pathway.
-The MLP `pos_mlp` receives only invariant inputs and produces a 3D vector in the local coordinate frame of the source residue.
+The MLP receives only invariant inputs and produces a 3D vector in the local coordinate frame of the source residue.
 When the entire protein is rotated by $$R_g$$, the source frame's rotation becomes $$R_g R_i$$, and the global update becomes $$R_g R_i \vec{d} = R_g (R_i \vec{d})$$ --- the original global update rotated by $$R_g$$.
 This is exactly the equivariance condition.
 
 ---
 
-## 8. The RFDiffusion Architecture
+## 7. The RFDiffusion Architecture
 
 ### From Structure Prediction to Structure Generation
 
@@ -957,7 +940,7 @@ class RFDiffusionBlock(nn.Module):
 
 The three components work together:
 
-**Invariant Point Attention (IPA)** is the attention mechanism from AlphaFold2's structure module (Lecture 6).
+**Invariant Point Attention (IPA)** is the attention mechanism from AlphaFold2's structure module (Lecture 8).
 It computes attention weights using both the learned features and the geometric relationship between residue frames.
 The attention is SE(3)-invariant: rotating the protein does not change which residues attend to which.
 
@@ -1022,42 +1005,20 @@ def update_frames(frames, updates):
     return frames.compose(update_transform)
 ```
 
-The scale factors `rot_scale = 0.1` and `trans_scale = 1.0` are important for training stability.
+The scale factors (0.1 for rotations, 1.0 for translations) are important for training stability.
 Without them, the initial random weights would produce large, erratic frame updates that destabilize the optimization.
 Scaling down the rotation updates is especially important because even small angles produce significant structural changes when applied to many residues simultaneously.
 
 ---
 
-## 9. Conditional Generation: Where the Magic Happens
+## 8. Conditional Generation: Implementation
 
-### From Random Backbones to Designed Proteins
+Lecture 9 described four conditioning strategies conceptually --- motif scaffolding, binder design, symmetric assemblies, and secondary structure conditioning.
+This section presents the implementation.
 
-Generating random protein backbones is a technical achievement, but the practical value of RFDiffusion lies in **conditional generation**: producing proteins that satisfy specific design objectives.
-Four conditioning strategies cover the most important use cases.
-
-**Motif scaffolding.**
-A functional motif --- say, a set of catalytic residues arranged in a specific geometry --- must be presented by a supporting protein scaffold.
-RFDiffusion generates the scaffold while holding the motif residues fixed.
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-08-rfdiffusion_diagram_3.png' | relative_url }}" alt="Motif scaffolding: a fixed functional motif and random scaffold noise are iteratively denoised over N steps, with the motif clamped at each step, producing a complete protein with the motif embedded in a designed scaffold">
-</div>
-<div class="caption mt-1"><strong>Motif scaffolding.</strong> The functional motif (red) is held fixed at each denoising step, while the surrounding scaffold residues (initially random noise) are progressively denoised. The result is a novel protein that presents the motif in the correct geometry, supported by a computationally designed scaffold.</div>
-
-**Binder design.**
-Given a target protein (for example, a viral surface protein), design a new protein that binds to a specified surface region on the target.
-This is the key to computational vaccine and therapeutic design.
-
-**Symmetric assemblies.**
-Generate proteins with specified symmetry --- dimers ($$C_2$$), trimers ($$C_3$$), or higher-order assemblies --- that can form cages, rings, or filaments.
-
-**Secondary structure conditioning.**
-Specify a desired pattern of helices and sheets, and let the model determine the three-dimensional arrangement.
-
-### Motif Conditioning in Practice
+### Motif Conditioning
 
 The simplest and most effective conditioning strategy is **inpainting**: at each step of the reverse diffusion process, replace the frames at motif positions with the ground-truth values.
-The model generates the remaining (scaffold) residues conditioned on the fixed motif geometry.
 
 ```python
 class MotifConditioning:
@@ -1098,15 +1059,11 @@ class MotifConditioning:
             mask[pos] = 1
         return mask
 ```
-
-This approach is effective because the denoising network has learned, from thousands of training structures, what kinds of scaffolds are geometrically and energetically plausible.
-Clamping the motif constrains the solution space to scaffolds that are compatible with the desired functional geometry.
+<div class="caption mt-1">Motif conditioning by inpainting. At each denoising step, motif residue frames are clamped to their ground-truth values while scaffold residues are updated by the model.</div>
 
 ### Self-Conditioning
 
-**Self-conditioning** feeds the model's own previous prediction back as additional input <sup id="cite-a2"><a href="#ref-a">[a]</a></sup>.
-During training, with probability 0.5, the model first makes a prediction without self-conditioning, then makes a second prediction that also receives the first prediction as input.
-Only the second prediction is used to compute the loss.
+**Self-conditioning** feeds the model's own previous prediction back as additional input, providing a "rough draft" that enables more coherent updates across denoising steps.
 
 ```python
 class SelfConditionedRFDiffusion(nn.Module):
@@ -1132,23 +1089,21 @@ class SelfConditionedRFDiffusion(nn.Module):
 
         return self.base_model(noisy_frames, t, self_cond)
 ```
+<div class="caption mt-1">Self-conditioning projects the previous prediction's 7D frame representation (quaternion + translation) into a feature vector that is fed back to the model.</div>
 
-Self-conditioning provides the model with a "rough draft" of the final structure, allowing it to make more coherent updates.
-Without self-conditioning, each denoising step must independently infer global structural context from the noisy input alone.
+During training, with probability 0.5, the model first makes a prediction without self-conditioning, then makes a second prediction that also receives the first prediction as input.
+Only the second prediction is used to compute the loss.
 
 ### Classifier-Free Guidance
 
-**Classifier-free guidance** <sup id="cite-d"><a href="#ref-d">[d]</a></sup> provides a continuous knob to control the strength of conditioning.
-During training, the conditioning signal is randomly dropped (replaced with zeros) with some probability.
+**Classifier-free guidance** provides a continuous knob to control the strength of conditioning.
 At inference time, the model is run twice --- once with conditioning and once without --- and the predictions are combined:
 
 $$
 \hat{x}_0^{\text{guided}} = \hat{x}_0^{\text{uncond}} + s \cdot (\hat{x}_0^{\text{cond}} - \hat{x}_0^{\text{uncond}}),
 $$
 
-where $$s$$ is the **guidance scale**.
-When $$s = 1$$, this reduces to the conditional prediction.
-When $$s > 1$$, the model extrapolates beyond the conditional prediction, producing structures that satisfy the constraints more strongly at the cost of reduced diversity.
+where $$s$$ is the guidance scale.
 
 ```python
 def sample_with_guidance(model, initial_frames, condition,
@@ -1186,17 +1141,15 @@ def sample_with_guidance(model, initial_frames, condition,
 
     return frames
 ```
-
-In practice, guidance scales between 1.0 and 3.0 work well for protein design.
-Too high a guidance scale can produce structures with strained geometry.
+<div class="caption mt-1">Classifier-free guidance interpolates (or extrapolates, when s > 1) between unconditional and conditional predictions. Guidance scales between 1.0 and 3.0 work well for protein design.</div>
 
 ---
 
-## 10. Training the Model
+## 9. Training the Model
 
 ### The Loss Function
 
-The training objective is straightforward: given a noisy protein structure and the noise level, predict the clean structure.
+The training objective: given a noisy protein structure and the noise level, predict the clean structure.
 The loss is computed separately for translations and rotations, using the appropriate metric for each space.
 
 For translations, the loss is the standard mean squared error in Euclidean space:
@@ -1318,7 +1271,7 @@ The pretrained RoseTTAFold weights provide a strong initialization that signific
 
 ---
 
-## 11. Generating New Proteins
+## 10. Generating New Proteins
 
 ### The Reverse Process
 
@@ -1450,82 +1403,40 @@ def denoise_and_renoise(noisy_frames, pred_clean, t_now, t_next, schedule):
 ```
 
 For translations, the update follows the standard DDPM formula from Ho et al. (2020): estimate the noise, compute the posterior mean, and add scaled noise.
-For rotations, we use **spherical linear interpolation (SLERP)** between the current noisy rotation and the predicted clean rotation[^slerp].
+For rotations, **spherical linear interpolation (SLERP)** between the current noisy rotation and the predicted clean rotation is used[^slerp].
 The interpolation factor is determined by the ratio of noise levels: at each step, we move fractionally closer to the predicted clean orientation.
 
 [^slerp]: SLERP (Spherical Linear Interpolation) was introduced by Ken Shoemake in 1985 for interpolating quaternions. It follows the shortest arc on $$SO(3)$$ between two rotations, unlike linear interpolation of Euler angles which can produce non-physical trajectories.
 
 ---
 
-## 12. Experimental Validation and Comparison
-
-### Proteins That Actually Work
-
-The ultimate test of any protein design method is experimental validation.
-RFDiffusion has been validated extensively, with several categories of results reported in the original Nature paper <sup id="cite-a3"><a href="#ref-a">[a]</a></sup>:
-
-**Novel folds.**
-RFDiffusion generates backbone topologies never observed in nature.
-When the corresponding amino acid sequences were designed (using ProteinMPNN <sup id="cite-c"><a href="#ref-c">[c]</a></sup>), synthesized, and expressed in *E. coli*, the proteins folded into the predicted structures.
-Small-angle X-ray scattering (SAXS) and circular dichroism (CD) measurements confirmed the expected size, shape, and secondary structure content.
-
-**Symmetric assemblies.**
-By incorporating symmetry constraints (e.g., $$C_3$$ for trimers or octahedral symmetry for cages), RFDiffusion designs proteins that self-assemble into multi-subunit architectures.
-Cryo-electron microscopy confirmed the designed symmetry.
-
-**Functional binders.**
-RFDiffusion has designed proteins that bind to therapeutically relevant targets --- including influenza hemagglutinin and SARS-CoV-2 receptor binding domain --- with nanomolar affinity.
-This demonstrates the practical potential for drug and vaccine development.
-
-**Enzyme scaffolds.**
-By scaffolding around known catalytic motifs (fixing the positions of key catalytic residues), researchers have generated novel enzyme backbones.
-The model produces scaffolds that hold the catalytic residues in the correct geometry, enabling enzymatic activity.
-
-### Comparison with Other Methods
-
-Several groups have developed alternative approaches to protein backbone generation.
-The following table summarizes the key differences:
-
-| Method | Representation | Symmetry | Generation Approach | Key Advantage |
-|--------|---------------|----------|---------------------|---------------|
-| RFDiffusion | SE(3) frames | SE(3) equivariant | Diffusion (DDPM) | Pretrained from RoseTTAFold; rich conditioning |
-| Chroma | Distance matrix | E(3) invariant | Diffusion | Simpler representation; scalable |
-| FrameDiff | SE(3) frames | SE(3) equivariant | Flow matching | Theoretically principled; continuous-time |
-| Genie | Backbone angles | None | Autoregressive | Simple; no equivariance overhead |
-
-RFDiffusion's strength is the combination of SE(3) equivariance, the powerful pretrained RoseTTAFold backbone, and the flexible conditioning mechanisms that enable practical design applications.
-Chroma trades some geometric expressiveness for a simpler, distance-matrix-based representation.
-FrameDiff uses the same SE(3) frame representation but replaces the diffusion process with flow matching, which offers cleaner training dynamics.
-Genie takes the simplest approach, generating backbone angles autoregressively without explicit geometric symmetry.
-
-The field is evolving rapidly, and each method has its niche.
-But RFDiffusion's experimental success has established SE(3) diffusion as a dominant paradigm for structure-based protein design.
-
----
-
 ## Key Takeaways
 
-1. **Proteins are geometric objects.** Their biological properties depend on three-dimensional shape, not on how that shape is oriented in a coordinate system. This makes SE(3) equivariance a natural requirement for protein generative models.
+1. **SE(3) equivariance is a structural requirement, not a nice-to-have.** Proteins are geometric objects whose properties depend on shape, not coordinate system. Building equivariance into the architecture guarantees this symmetry exactly, improves data efficiency, and produces physically meaningful representations.
 
-2. **Each residue defines a coordinate frame.** The frame representation --- treating each amino acid as a rigid-body transformation $$(R_i, \vec{t}_i) \in SE(3)$$ --- captures the full backbone geometry in a compact and geometrically natural way.
+2. **The frame representation is natural for protein backbones.** Each residue is a rigid-body transformation $$(R_i, \vec{t}_i) \in SE(3)$$, capturing both position and orientation in a compact, geometrically complete representation with $$6L$$ degrees of freedom.
 
-3. **Rotations require non-Euclidean noise.** Standard Gaussian diffusion cannot be applied directly to rotations because $$SO(3)$$ is a curved manifold. The IGSO(3) distribution provides a principled analogue: isotropic noise that smoothly interpolates between the identity and the uniform distribution over rotations.
+3. **Rotations require non-Euclidean noise.** Standard Gaussian diffusion cannot be applied to rotations because $$SO(3)$$ is a curved manifold. The IGSO(3) distribution provides a principled analogue: isotropic noise that smoothly interpolates between the identity and the uniform distribution over rotations.
 
-4. **Equivariance is built into the architecture.** By computing with invariant features (distances, relative rotation angles) and applying updates in local coordinate frames, the neural network respects SE(3) symmetry exactly, without data augmentation.
+4. **Equivariant architecture = invariant features + local-frame updates.** Distances, relative rotation angles, and other invariant quantities feed into standard neural network layers. Outputs are predicted in local frames and transformed to global coordinates, guaranteeing equivariance by construction.
 
-5. **Conditional generation enables practical design.** Motif scaffolding, binder design, and symmetric assembly generation all work by constraining the diffusion process during inference. Classifier-free guidance provides fine control over the conditioning strength.
+5. **Frame updates are composed, not added.** Because $$SE(3)$$ is a non-commutative group, the denoiser's predicted updates are composed with the current frames via group multiplication, not added as vectors.
 
-6. **Experimental validation confirms the approach.** RFDiffusion-designed proteins fold as predicted and perform intended functions, representing a qualitative advance in computational protein design.
+6. **The geodesic loss respects the geometry of $$SO(3)$$.** Rotation errors are measured by the angle of the relative rotation (the geodesic distance on the manifold), not by Euclidean distance between rotation matrices.
 
 ---
 
 <div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
-<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/13-nano-rfdiffusion/' | relative_url }}">nano-rfdiffusion code walkthrough</a> implements this lecture's algorithm from scratch in 607 lines of PyTorch. SE(3) diffusion, IPA denoising, self-conditioning — all in two files.
+<strong>Problem context:</strong> <a href="{{ '/lectures/11-rfdiffusion-tasks/' | relative_url }}">Lecture 9 — Protein Backbone Design: Problems and Applications</a> covers the design problem, the historical context, and the practical pipeline.
+</div>
+
+<div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/17-nano-rfdiffusion/' | relative_url }}">nano-rfdiffusion code walkthrough</a> implements this lecture's algorithm from scratch in 607 lines of PyTorch. SE(3) diffusion, IPA denoising, self-conditioning — all in two files.
 </div>
 
 ## Further Reading
 
-- **Code walkthrough:** [nano-rfdiffusion]({{ '/lectures/13-nano-rfdiffusion/' | relative_url }}) — build RFDiffusion from scratch in 607 lines of PyTorch
+- **Code walkthrough:** [nano-rfdiffusion]({{ '/lectures/17-nano-rfdiffusion/' | relative_url }}) — build RFDiffusion from scratch in 607 lines of PyTorch
 - Lilian Weng, ["What are Diffusion Models?"](https://lilianweng.github.io/posts/2021-07-11-diffusion-models/) — covers the foundational diffusion framework that RFdiffusion builds upon, including DDPM, score matching, and classifier guidance.
 - Stephan Heijl, ["A New Protein Design Era with Protein Diffusion"](https://stephanheijl.com/rfdiffusion.html) — detailed technical walkthrough of RFDiffusion's denoising process, RoseTTAFold fine-tuning, and motif scaffolding.
 - Baker Lab, ["A Diffusion Model for Protein Design"](https://www.bakerlab.org/2023/07/11/diffusion-model-for-protein-design/) — official blog on RFDiffusion's capabilities including binder design and symmetric oligomer generation.

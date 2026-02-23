@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Variational Autoencoders for Proteins"
-date: 2026-03-23
 description: "Variational autoencoders for generating novel proteins—the encoder-decoder framework, the ELBO derivation, and the reparameterization trick."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
@@ -425,7 +424,7 @@ To find the most compact polymer the model can generate, perform gradient descen
 After ~200 steps, the optimized polymer is more compact than anything in the training set — the VAE has extrapolated beyond the observed data.
 This is the same principle behind protein design: encode known proteins, navigate the latent space toward desired properties (binding affinity, stability, solubility), and decode novel sequences.
 
-The full code — data loading, preprocessing, model, training, visualization, and optimization — is in the [nano-polymer-vae]({{ '/lectures/18-nano-polymer-vae/' | relative_url }}) walkthrough. The companion [Lecture 4]({{ '/lectures/17-diffusion/' | relative_url }}) applies a diffusion model to the same polymer data, and the [nano-polymer-diffusion]({{ '/lectures/19-nano-polymer-diffusion/' | relative_url }}) walkthrough enables a direct side-by-side comparison.
+The full code — data loading, preprocessing, model, training, visualization, and optimization — is in the [nano-polymer-vae]({{ '/lectures/22-nano-polymer-vae/' | relative_url }}) walkthrough. The companion [Lecture 4]({{ '/lectures/21-diffusion/' | relative_url }}) applies a diffusion model to the same polymer data, and the [nano-polymer-diffusion]({{ '/lectures/23-nano-polymer-diffusion/' | relative_url }}) walkthrough enables a direct side-by-side comparison.
 
 ---
 

@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Graph Neural Networks for Protein Structures"
-date: 2026-03-16
 description: "Message-passing networks for protein structures—from graph representations to GCN, GAT, MPNN, and SE(3)-equivariant architectures."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"

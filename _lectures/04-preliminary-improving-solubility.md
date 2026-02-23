@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Case Study: Predicting Protein Solubility"
-date: 2026-03-03
 description: "An end-to-end case study—building an MLP solubility predictor from sequence features, and learning to evaluate honestly with sequence-identity splits, class weighting, and early stopping."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
@@ -27,7 +26,7 @@ Each section follows the same arc: *observe a problem → understand why it happ
 
 By the end, you will have a working solubility predictor and a practical toolkit for diagnosing and fixing the most common training problems in protein machine learning.
 The main lectures introduce more powerful architectures (CNNs, transformers, GNNs) and additional input modalities (3D structure, learned embeddings).
-A companion [code walkthrough]({{ '/lectures/15-nano-solubility/' | relative_url }}) builds a convolutional variant of this classifier --- learned embeddings and 1D convolutions that exploit sequential structure.
+A companion [code walkthrough]({{ '/lectures/19-nano-solubility/' | relative_url }}) builds a convolutional variant of this classifier --- learned embeddings and 1D convolutions that exploit sequential structure.
 
 ### Roadmap
 
@@ -96,7 +95,7 @@ Our featurizer handles this by computing *aggregate statistics* --- frequencies,
 The price: all positional information is lost.
 A protein with a hydrophobic N-terminus and a charged C-terminus produces the same feature vector as one with the opposite arrangement.
 
-Composition alone is a surprisingly strong baseline for solubility, but the companion [code walkthrough]({{ '/lectures/15-nano-solubility/' | relative_url }}) shows how convolutional networks can exploit positional patterns for better performance.
+Composition alone is a surprisingly strong baseline for solubility, but the companion [code walkthrough]({{ '/lectures/19-nano-solubility/' | relative_url }}) shows how convolutional networks can exploit positional patterns for better performance.
 
 ### The Architecture
 
@@ -182,7 +181,7 @@ A convolutional filter with kernel size $$k$$ looks at the same $$k$$ consecutiv
 A CNN with 16 filters of kernel size 5 replaces 3.2 million possible 5-mer counts with just 16 learned patterns.
 An embedding layer further compresses each amino acid from a sparse categorical token to a dense vector, so the filter weights are small and the model generalizes well.
 
-The companion [code walkthrough]({{ '/lectures/15-nano-solubility/' | relative_url }}) builds exactly this: filters of size 5, 3, and 3 in successive layers, each acting as a learned $$k$$-mer detector at increasing effective receptive fields.
+The companion [code walkthrough]({{ '/lectures/19-nano-solubility/' | relative_url }}) builds exactly this: filters of size 5, 3, and 3 in successive layers, each acting as a learned $$k$$-mer detector at increasing effective receptive fields.
 **A 1D CNN is the learned, parameter-efficient generalization of $$k$$-mer frequency counting.**
 
 CNNs also handle variable-length input more gracefully than our featurizer: they process each position with the same shared filters, then max-pool the result into a fixed-size vector.

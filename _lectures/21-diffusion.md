@@ -1,12 +1,11 @@
 ---
 layout: post
 title: "Diffusion Models for Protein Generation"
-date: 2026-03-23
 description: "Denoising diffusion probabilistic models—the forward noising process, reverse denoising, score matching, and conditional generation for protein structures."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 4
+lecture_number: 5
 preliminary: false
 toc:
   sidebar: left
@@ -452,7 +451,7 @@ Comparing the generated conformations against training data using the radius-of-
 
 For this 24-dimensional toy system, the practical difference is small. For real proteins (thousands of dimensions), the quality gap between VAEs and diffusion models is substantial — which is why state-of-the-art protein structure generators (RFdiffusion, Chroma, FrameDiff) all use diffusion.
 
-The full runnable code is in the [nano-polymer-diffusion]({{ '/lectures/19-nano-polymer-diffusion/' | relative_url }}) walkthrough, which includes side-by-side $$R_g$$ histograms and timing benchmarks.
+The full runnable code is in the [nano-polymer-diffusion]({{ '/lectures/23-nano-polymer-diffusion/' | relative_url }}) walkthrough, which includes side-by-side $$R_g$$ histograms and timing benchmarks.
 
 ---
 

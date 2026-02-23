@@ -1,12 +1,11 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-polymer-diffusion"
-date: 2026-03-23
 description: "Build a denoising diffusion model (DDPM) for 2D bead-spring polymers — noise schedule, MLP denoiser with timestep embedding, and side-by-side comparison with the VAE."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 14
+lecture_number: 6
 preliminary: false
 toc:
   sidebar: left
@@ -19,10 +18,10 @@ related_posts: false
 </div>
 
 <p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;">
-<em>Companion to <a href="{{ '/lectures/17-diffusion/' | relative_url }}">Lecture 4: Diffusion Models for Protein Generation</a>. The lecture develops the DDPM framework — forward process, noise prediction, reverse denoising. This page applies every concept to the same bead-spring polymer from <a href="{{ '/lectures/18-nano-polymer-vae/' | relative_url }}">nano-polymer-vae</a>, enabling a direct comparison between two generative frameworks on identical data.</em>
+<em>Companion to <a href="{{ '/lectures/21-diffusion/' | relative_url }}">Lecture 4: Diffusion Models for Protein Generation</a>. The lecture develops the DDPM framework — forward process, noise prediction, reverse denoising. This page applies every concept to the same bead-spring polymer from <a href="{{ '/lectures/22-nano-polymer-vae/' | relative_url }}">nano-polymer-vae</a>, enabling a direct comparison between two generative frameworks on identical data.</em>
 </p>
 
-The [nano-polymer-vae]({{ '/lectures/18-nano-polymer-vae/' | relative_url }}) walkthrough trained a VAE on 2D bead-spring polymers — 12 beads, 24 coordinates, generation via a single decoder pass. Here we train a DDPM on the exact same preprocessed data. Same polymer, same preprocessing, different generative model. By the end, we can put VAE and DDPM samples side by side and see what each framework does well.
+The [nano-polymer-vae]({{ '/lectures/22-nano-polymer-vae/' | relative_url }}) walkthrough trained a VAE on 2D bead-spring polymers — 12 beads, 24 coordinates, generation via a single decoder pass. Here we train a DDPM on the exact same preprocessed data. Same polymer, same preprocessing, different generative model. By the end, we can put VAE and DDPM samples side by side and see what each framework does well.
 
 ## 1. Same Data, Different Generator
 

@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Transformers for Protein Sequences"
-date: 2026-03-16
 description: "Attention mechanisms for protein sequences—from adaptive weight matrices to multi-head self-attention and the full transformer architecture."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"

@@ -1,12 +1,11 @@
 ---
 layout: post
-title: "AlphaFold: Protein Structure Prediction"
-date: 2026-03-30
-description: "A deep dive into AlphaFold2's architecture—from MSA processing and the Evoformer's triangle updates to invariant point attention and the FAPE loss."
+title: "AlphaFold: Architecture and Training"
+description: "Inside AlphaFold2—input embedding, the Evoformer's triangle updates, invariant point attention, FAPE loss, and the full prediction pipeline."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 6
+lecture_number: 11
 preliminary: false
 toc:
   sidebar: left
@@ -14,139 +13,33 @@ related_posts: false
 collapse_code: true
 ---
 
-<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 6 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. It assumes familiarity with transformers and attention mechanisms (Lecture 1) as well as protein language models (Lecture 5). All code examples use PyTorch and are simplified for pedagogical clarity.</em></p>
+<p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;"><em>This is Lecture 8 of the Protein &amp; Artificial Intelligence course (Spring 2026), co-taught by Prof. Sungsoo Ahn and Prof. Homin Kim at KAIST Graduate School of AI. It is the architecture companion to Lecture 7 (AlphaFold: The Structure Prediction Problem). It assumes familiarity with transformers (Lecture 1) and protein language models (Lectures 5–6). All code examples use PyTorch.</em></p>
 
 ## Introduction
 
-In November 2020, DeepMind's AlphaFold2 achieved what many structural biologists had considered a decades-away milestone: predicting protein structures from amino acid sequences at near-experimental accuracy.
-The result was not a lucky accident.
-AlphaFold2 encodes deep biological insight---about protein evolution, three-dimensional geometry, and physical symmetry---directly into its neural network architecture.
-
-This lecture dissects the AlphaFold2 system from end to end.
-We begin with the historical context that defines *why* protein structure prediction is hard, then walk through every major component: input embedding, the Evoformer, the Structure Module, and the FAPE loss.
-Along the way we examine simplified PyTorch implementations of each piece, so that the architecture is not just conceptual but concrete.
+Lecture 7 framed the protein structure prediction problem and its significance---from Anfinsen's hypothesis through CASP14, and from genetic disease to drug discovery.
+This lecture dissects AlphaFold2's architecture: the engineering that turned a 50-year challenge into a solved problem.
+Every major component is examined in turn---input embedding, the Evoformer, the Structure Module, and the FAPE loss---with simplified PyTorch implementations that make the architecture concrete rather than merely conceptual.
 
 ### Roadmap
 
 | Section | Topic | Why It Is Needed |
 |---------|-------|------------------|
-| 1 | Historical context | Frames the 50-year challenge and the CASP benchmark |
-| 2 | Bird's-eye view | Establishes the high-level data flow before details |
-| 3 | Input embedding | Translates sequences and MSAs into tensor representations |
-| 4 | Evoformer | Extracts co-evolutionary and geometric signals |
-| 5 | Structure Module | Converts learned features into 3D atomic coordinates |
-| 6 | FAPE loss | Defines what "correct structure" means for training |
-| 7 | Full pipeline | Assembles the pieces into one coherent system |
-| 8 | Design principles | Distills the recurring architectural ideas |
-| 9 | Computational considerations | Addresses memory, speed, and scaling |
+| 1 | Input embedding | Translates sequences and MSAs into tensor representations |
+| 2 | Evoformer | Extracts co-evolutionary and geometric signals |
+| 3 | Structure Module | Converts learned features into 3D atomic coordinates |
+| 4 | FAPE loss | Defines what "correct structure" means for training |
+| 5 | Full pipeline | Assembles the pieces into one coherent system |
+| 6 | Computational considerations | Addresses memory, speed, and scaling |
 
 ---
 
-## 1. Historical Context: The Fifty-Year Challenge
-
-### 1.1 Anfinsen's Thermodynamic Hypothesis
-
-<div class="col-sm-8 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/wikimedia/protein_structure_levels.png' | relative_url }}" alt="Four levels of protein structure">
-    <div class="caption mt-1"><strong>The four levels of protein structure.</strong> Primary structure is the amino acid sequence. Secondary structure consists of local folding patterns (alpha helices and beta sheets). Tertiary structure is the complete 3D fold of a single chain. Quaternary structure describes the assembly of multiple chains. Source: Wikimedia Commons, CC BY-SA 4.0.</div>
-</div>
-
-In 1972, Christian Anfinsen received the Nobel Prize in Chemistry for demonstrating that a protein's amino acid sequence contains all the information necessary to determine its three-dimensional structure[^anfinsen].
-His experiments on ribonuclease A showed that a denatured[^denatured] (unfolded) protein could spontaneously refold into its functional form once the denaturing agent was removed.
-
-[^denatured]: **Denaturation** is the loss of a protein's three-dimensional structure. Heat, extreme pH, or chemical agents (like urea) disrupt the non-covalent interactions --- hydrogen bonds, hydrophobic packing, salt bridges --- that hold the fold together, leaving the chain as a floppy, unstructured polymer.
-
-The implication was clear: the sequence dictates the fold.
-
-[^anfinsen]: Anfinsen's thermodynamic hypothesis is sometimes called the "thermodynamic control" model of folding, as opposed to kinetic control, where folding intermediates might trap the protein in a non-native state.
-
-### 1.2 Levinthal's Paradox
-
-If sequence determines structure, why can we not simply compute the structure?
-Cyrus Levinthal pointed out a devastating combinatorial obstacle.
-A protein of just 100 amino acids, a small protein by any measure, can adopt an astronomical number of backbone conformations.
-If the protein sampled one trillion conformations per second, it would still take longer than the age of the universe to enumerate them all.
-Yet real proteins fold in milliseconds.
-
-This is **Levinthal's paradox**: the folding process must follow a guided search, not a random one.
-The energy landscape is "funneled," steering the chain toward the native state through progressively lower-energy intermediates[^funnel].
-But knowing that a shortcut exists is different from knowing what it is.
-
-[^funnel]: The "folding funnel" picture, introduced by Wolynes, Onuchic, and Thirumalai in the 1990s, describes the free-energy landscape as a rugged funnel in which the native state sits at the bottom.
-
-### 1.3 CASP and the Structure Prediction Community
-
-The **Critical Assessment of protein Structure Prediction** (CASP) competition, launched in 1994, gave the field a rigorous benchmark.
-Every two years, organizers release protein sequences whose structures have been determined experimentally but not yet published.
-Prediction groups submit blind predictions, and the results are evaluated against the hidden ground truth.
-
-For 25 years, progress was incremental.
-Methods improved from roughly 20 GDT-TS (a score where 100 means perfect) in early CASPs to the mid-60s by 2018.
-Then AlphaFold2 appeared at CASP14 in 2020 and scored a median GDT-TS above 90, crossing the threshold of experimental accuracy for most targets[^casp14].
-A problem that had resisted half a century of effort appeared to yield almost overnight to deep learning.
-
-<div class="col-sm-10 mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/casp_progress.png' | relative_url }}" alt="CASP progress chart showing AlphaFold2 breakthrough">
-    <div class="caption mt-1"><strong>CASP competition progress.</strong> Median GDT-TS scores for the best-performing group in each CASP edition. For 25 years, progress was incremental (blue bars). AlphaFold2 at CASP14 (red bar) crossed the experimental accuracy threshold, effectively solving the structure prediction problem.</div>
-</div>
-
-[^casp14]: The GDT-TS (Global Distance Test - Total Score) metric measures the fraction of residues whose C$$_\alpha$$ atoms fall within various distance cutoffs of the true structure after optimal superposition. A score above 90 is generally considered comparable to experimental accuracy for medium-resolution crystal structures.
-
----
-
-## 2. Bird's-Eye View: How AlphaFold2 Thinks About Proteins
-
-Before diving into equations and code, it helps to understand AlphaFold2's overall strategy in plain language.
-
-### 2.1 The Core Insight: No Protein Is Alone
-
-When predicting a protein's structure, one might think the only available information is the sequence itself---a string of amino acid letters.
-But every protein has evolutionary relatives: sequences that diverged from a common ancestor and have been independently shaped by natural selection.
-
-These relatives are collected into a **multiple sequence alignment**[^msa] (MSA), where homologous (introduced in Lecture 5) sequences are arranged so that evolutionarily equivalent positions line up in columns.
-
-[^msa]: A **multiple sequence alignment** (MSA) is a matrix where each row is a related protein sequence and each column aligns evolutionarily corresponding positions. MSAs are built by search tools like JackHMMER or HHBlits, which scan large sequence databases to find homologs of the query protein. A typical MSA for AlphaFold2 may contain thousands of sequences.
-Examining an MSA reveals two kinds of signal:
-
-1. **Conservation.** Some positions rarely change because mutations there would break the protein.
-2. **Co-variation.** Some positions change *together*: when position 15 mutates, position 47 compensates. These correlated mutations indicate that the two positions are in physical contact in the folded structure.
-
-AlphaFold2 makes evolutionary information the central organizing principle of its architecture, not merely an input feature.
-
-### 2.2 AlphaFold2 Pipeline Overview
-
-The following diagram shows the overall architecture of AlphaFold2, from input sequences to 3D structure output.
-
-<div class="col-sm mt-3 mb-3 mx-auto">
-    <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-07-alphafold_diagram_0.png' | relative_url }}" alt="AlphaFold2 pipeline overview: protein sequence is embedded into MSA and pair representations, refined by 48 Evoformer blocks, then decoded by the structure module into 3D coordinates with confidence scores">
-</div>
-
-### 2.3 Two Representations, One Structure
-
-AlphaFold2 maintains two parallel data structures throughout most of its computation:
-
-- The **MSA representation** has shape $$[N_{\text{seq}} \times L \times c_m]$$, where $$N_{\text{seq}}$$ is the number of aligned sequences, $$L$$ is the protein length, and $$c_m$$ is the feature dimension. Each entry encodes information about one position in one sequence.
-- The **pair representation** has shape $$[L \times L \times c_z]$$. Entry $$(i, j)$$ encodes what the network believes about the relationship between residue $$i$$ and residue $$j$$---their spatial proximity, hydrogen-bonding potential, or co-evolutionary coupling.
-
-These two representations communicate throughout the network.
-Evolutionary signals from the MSA inform pairwise relationships, and pairwise constraints help interpret the MSA.
-By the end of this exchange, the pair representation contains a detailed predicted distance map.
-
-### 2.4 From Distances to Coordinates
-
-A distance map tells you *which* residues are close, but it does not directly specify *where* they are in three-dimensional space.
-The **Structure Module** takes the refined representations and converts them into atomic coordinates.
-This conversion must respect the symmetries of Euclidean space: rotating or translating a protein does not change its internal structure.
-The Structure Module achieves this through **Invariant Point Attention** (IPA), a mechanism that works in local coordinate frames attached to each residue.
-
----
-
-## 3. Input Embedding: Translating Biology into Tensors
+## 1. Input Embedding: Translating Biology into Tensors
 
 Every deep learning system must bridge the gap between its domain and the world of tensors.
 For AlphaFold2, this means encoding amino acid sequences, evolutionary alignments, and (optionally) structural templates into numerical representations.
 
-### 3.1 What Goes In
+### 1.1 What Goes In
 
 AlphaFold2 accepts three categories of input:
 
@@ -161,7 +54,7 @@ If the database contains a homolog with, say, 40% sequence identity, its backbon
 
 [^template]: A **template structure** is a previously solved 3D structure of a protein related to the target. Traditional homology modeling copies and adjusts the template's coordinates; AlphaFold2 uses templates as soft geometric hints rather than rigid scaffolds.
 
-### 3.2 Creating the Initial Representations
+### 1.2 Creating the Initial Representations
 
 The embedding layer transforms raw inputs into the MSA and pair representations that the Evoformer will refine.
 The pair representation starts simple: an additive combination of left-residue features, right-residue features, and relative-position encodings.
@@ -223,7 +116,7 @@ class InputEmbedding(nn.Module):
 The relative position encoding gives the network a prior: residues that are close in sequence (like positions 15 and 16) receive different encodings than residues far apart (like positions 15 and 150).
 This prior is biologically sensible because sequence-local residues are more likely to be spatially close.
 
-### 3.3 Key Dimensions
+### 1.3 Key Dimensions
 
 Several dimension constants appear throughout AlphaFold2.
 Keeping track of them helps when reading code or the original paper.
@@ -236,7 +129,7 @@ Keeping track of them helps when reading code or the original paper.
 
 ---
 
-## 4. The Evoformer: Where Evolution Meets Attention
+## 2. The Evoformer: Where Evolution Meets Attention
 
 The Evoformer is the heart of AlphaFold2.
 It is a stack of 48 nearly identical blocks, each of which refines both the MSA representation and the pair representation.
@@ -250,7 +143,7 @@ What makes the Evoformer distinctive is not raw size but architectural specifici
 Every sub-component targets a particular biological signal.
 We examine each in turn.
 
-### 4.1 MSA Row Attention with Pair Bias
+### 2.1 MSA Row Attention with Pair Bias
 
 **What it does.** Within a single sequence of the MSA, each position attends to every other position.
 This is analogous to self-attention in a standard transformer, but with an important addition: the attention logits are *biased* by the pair representation.
@@ -337,7 +230,7 @@ The gating mechanism at the output deserves attention.
 Rather than always adding the full attention output, the network learns a per-element sigmoid gate that controls how much new information to incorporate.
 This pattern appears throughout AlphaFold2 and helps stabilize gradient flow during training.
 
-### 4.2 MSA Column Attention
+### 2.2 MSA Column Attention
 
 **What it does.** While row attention examines relationships *within* a single sequence, column attention looks at the *same position* across different sequences in the MSA.
 
@@ -351,7 +244,7 @@ AlphaFold2 mitigates this cost by sampling down to 512 sequences for the extra M
 
 [^axial]: Axial attention factorizes a two-dimensional attention into two one-dimensional passes (one along rows, one along columns). This reduces complexity from $$O(N^2 L^2)$$ to $$O(N^2 L + N L^2)$$.
 
-### 4.3 Triangular Updates: Enforcing Geometric Consistency
+### 2.3 Triangular Updates: Enforcing Geometric Consistency
 
 Now we come to one of AlphaFold2's most elegant ideas.
 
@@ -372,7 +265,7 @@ The **triangular updates** pass messages around triangles in the pair representa
 </div>
 There are four triangular operations in each Evoformer block---two multiplicative updates and two attention variants---each providing a different view of the geometric constraints.
 
-#### 4.3.1 Triangular Multiplicative Update (Outgoing Edges)
+#### 2.3.1 Triangular Multiplicative Update (Outgoing Edges)
 
 For each pair $$(i, j)$$, aggregate information from all pairs $$(i, k)$$ and $$(j, k)$$ that share a third node $$k$$:
 
@@ -386,7 +279,7 @@ The sum over $$k$$ accumulates evidence from every possible third vertex.
     <div class="caption mt-1"><strong>Triangular multiplicative update (outgoing).</strong> For each pair \((i,j)\), the update aggregates information from all pairs \((i,k)\) and \((j,k)\) sharing a third node \(k\). Gated projections are element-wise multiplied and summed over \(k\). Source: Simon & Silberg, <em>The Illustrated AlphaFold</em> (2024).</div>
 </div>
 
-#### 4.3.2 Triangular Multiplicative Update (Incoming Edges)
+#### 2.3.2 Triangular Multiplicative Update (Incoming Edges)
 
 The same idea, but the summation runs over the *other* index:
 
@@ -456,7 +349,7 @@ class TriangularMultiplicativeUpdate(nn.Module):
         return pair_repr + gate * out
 ```
 
-#### 4.3.3 Triangular Attention
+#### 2.3.3 Triangular Attention
 
 The triangular attention operations serve a similar purpose but use *attention* rather than element-wise multiplication to aggregate information.
 Two variants exist---**starting-node** and **ending-node**---providing complementary views of the triangle.
@@ -532,7 +425,7 @@ The multiplicative updates are "hard" operations that directly compute products 
 The attention operations are "soft," letting the network learn which triangles matter most for each pair.
 Together they provide complementary pathways for enforcing geometric consistency.
 
-### 4.4 Outer Product Mean: Bridging MSA and Pairs
+### 2.4 Outer Product Mean: Bridging MSA and Pairs
 
 The MSA representation and pair representation need to communicate.
 The **outer product mean** is the primary pathway from MSA to pairs.
@@ -587,7 +480,7 @@ class OuterProductMean(nn.Module):
         return self.output(outer)
 ```
 
-### 4.5 The Complete Evoformer Block
+### 2.5 The Complete Evoformer Block
 
 Each Evoformer block orchestrates all the components described above.
 The information flow within a single block is as follows:
@@ -639,16 +532,16 @@ After 48 of these blocks, the MSA representation has been refined through thousa
 The pair representation now functions as a predicted distance map---a blurry but informative picture of which residues are close in three-dimensional space.
 
 But a distance map is not yet a structure.
-We need to convert pairwise relationships into actual atomic coordinates.
+The next step converts pairwise relationships into actual atomic coordinates.
 
 ---
 
-## 5. The Structure Module: From Features to Coordinates
+## 3. The Structure Module: From Features to Coordinates
 
 The Structure Module is where AlphaFold2 produces its final output: three-dimensional atomic coordinates for every residue.
 This component introduces Invariant Point Attention (IPA), arguably the most important architectural innovation in the system.
 
-### 5.1 The Challenge of Three-Dimensional Structure
+### 3.1 The Challenge of Three-Dimensional Structure
 
 Protein structures exist in three-dimensional Euclidean space, and that space has symmetries.
 If you rotate a protein by 90 degrees, it is still the same protein.
@@ -661,7 +554,7 @@ Any valid structure prediction method must respect these symmetries.
 Earlier approaches sidestepped the issue by predicting distance matrices or contact maps, which are naturally rotation- and translation-invariant.
 AlphaFold2 wanted to predict actual coordinates, which required building invariance directly into the architecture.
 
-### 5.2 Frames: A Language for Protein Geometry
+### 3.2 Frames: A Language for Protein Geometry
 
 AlphaFold2's solution is to represent each residue as a **rigid body frame**---a local coordinate system defined by a rotation and a translation.
 The backbone atoms of each residue (N, C$$_\alpha$$, C) define a natural reference frame.
@@ -720,7 +613,7 @@ class Rigid:
         return Rigid(inv_rots, inv_trans)
 ```
 
-### 5.3 Invariant Point Attention (IPA)
+### 3.3 Invariant Point Attention (IPA)
 
 <div class="col-sm mt-3 mb-3 mx-auto">
     <img class="img-fluid rounded" src="{{ '/assets/img/teaching/mermaid/s26-07-alphafold_diagram_3.png' | relative_url }}" alt="Invariant Point Attention: scalar queries and keys from per-residue features combine with point queries and keys in local frames and pair bias to compute SE(3)-invariant attention scores">
@@ -861,7 +754,7 @@ class InvariantPointAttention(nn.Module):
         return self.to_out(out)
 ```
 
-### 5.4 Iterative Refinement
+### 3.4 Iterative Refinement
 
 The Structure Module does not predict coordinates in a single pass.
 Instead, it initializes all residue frames to the identity transformation---placing every residue at the origin with default orientation---and iteratively refines them through 8 layers of IPA.
@@ -961,12 +854,12 @@ The actual AlphaFold2 implementation parameterizes rotations using quaternions, 
 
 ---
 
-## 6. FAPE Loss: Teaching Geometry Through Local Frames
+## 4. FAPE Loss: Teaching Geometry Through Local Frames
 
 With the architecture in place, we turn to the question of how AlphaFold2 *learns*.
 This requires a loss function that captures what it means for a predicted structure to be correct.
 
-### 6.1 The Problem with RMSD
+### 4.1 The Problem with RMSD
 
 The standard metric for comparing protein structures is **root-mean-square deviation** (RMSD): optimally superimpose the predicted and true structures, then compute the average squared displacement of corresponding atoms.
 RMSD has been the workhorse of structural biology for decades, but it has several problems as a *training loss*:
@@ -977,7 +870,7 @@ RMSD has been the workhorse of structural biology for decades, but it has severa
 2. **RMSD treats all errors equally.** A 2-angstrom error in a floppy loop is penalized the same as a 2-angstrom error in a rigid beta sheet, even though the loop error might be physically reasonable.
 3. **Global sensitivity.** A single badly predicted domain can dominate the RMSD, masking accurate predictions elsewhere.
 
-### 6.2 Frame Aligned Point Error (FAPE)
+### 4.2 Frame Aligned Point Error (FAPE)
 
 AlphaFold2's answer is **Frame Aligned Point Error** (FAPE).
 Instead of measuring error in global coordinates, FAPE measures error in *local* coordinate frames.
@@ -1040,7 +933,7 @@ The clamping at 10 angstroms deserves explanation.
 If part of the structure is completely wrong, the loss stops increasing beyond the clamp value.
 This prevents catastrophic gradients from a single misplaced domain and lets the network focus on improving regions where progress is possible.
 
-### 6.3 Auxiliary Losses: Multi-Task Learning
+### 4.3 Auxiliary Losses: Multi-Task Learning
 
 AlphaFold2 does not rely on FAPE alone.
 Several auxiliary losses provide additional training signal:
@@ -1102,7 +995,7 @@ def alphafold_loss(predictions, targets, config):
 
 ---
 
-## 7. Putting It All Together
+## 5. Putting It All Together
 
 Stepping back, the pieces assemble into the complete AlphaFold2 pipeline as follows.
 
@@ -1153,53 +1046,7 @@ This allows the network to correct mistakes using feedback from its own predicti
 
 ---
 
-## 8. Design Principles and Lessons
-
-AlphaFold2's success was not accidental.
-Every component reflects principled thinking about what information matters for protein structure and how neural networks can extract it.
-
-### Principle 1: Use Evolutionary Information
-
-Proteins are not designed from scratch; they evolve from ancestors.
-Related sequences are experiments run by natural selection, each revealing something about the constraints on structure.
-AlphaFold2 makes MSA processing central, with specialized attention mechanisms that extract co-evolutionary signals.
-
-### Principle 2: Model Pairwise Relationships Explicitly
-
-Protein structure is fundamentally about which residues are near which other residues.
-The pair representation makes these relationships a first-class data structure, and triangular operations enforce that pairwise predictions are geometrically self-consistent.
-
-### Principle 3: Respect Symmetry
-
-Three-dimensional space has rotational and translational symmetry.
-Rather than hoping the network discovers this from data, AlphaFold2 builds invariance into the architecture through local frames and IPA.
-This is an instance of a broader principle: **inductive biases that match the problem domain reduce the burden on learning**.
-
-### Principle 4: Iterate and Refine
-
-The Evoformer runs 48 blocks.
-The Structure Module runs 8 iterations.
-The full pipeline is recycled 3 times.
-Each pass improves on the last, allowing local decisions to propagate globally and global context to inform local geometry.
-
-### Principle 5: Learn What You Do Not Know
-
-The pLDDT confidence head is not an afterthought.
-AlphaFold2 explicitly models its own uncertainty, distinguishing confident predictions from guesses.
-This has proven valuable for downstream users: a prediction with pLDDT > 90 can be trusted for atomic-level analysis, while regions below 50 are likely disordered or poorly predicted.
-
-| Principle | Implementation |
-|-----------|----------------|
-| Use evolutionary information | MSA processing in Evoformer |
-| Model pairwise relationships | Pair representation + triangular updates |
-| Respect symmetry (SE(3)) | IPA, frame-based representation |
-| Iterate and refine | 8 IPA iterations, 3 recycling passes |
-| Multi-task learning | FAPE + distogram + pLDDT + masked MSA |
-| Calibrated confidence | pLDDT head trained against actual local accuracy |
-
----
-
-## 9. Computational Considerations
+## 6. Computational Considerations
 
 AlphaFold2 is computationally demanding.
 Understanding the bottlenecks helps when implementing, adapting, or deploying the architecture.
@@ -1234,29 +1081,29 @@ For reference, predicting the structure of a single ~400-residue protein takes a
 
 ## Key Takeaways
 
-1. **AlphaFold2 solved a 50-year grand challenge** by predicting protein structures at experimental accuracy, reaching median GDT > 90 in CASP14. The key insight was combining evolutionary information (MSAs) with learned geometric reasoning in a single end-to-end differentiable architecture.
+1. **The Evoformer is the architectural core.** Its 48 blocks refine MSA and pair representations through row attention (with pair bias), column attention, triangular multiplicative updates, triangular attention, and outer product mean---each targeting a specific biological signal.
 
-2. **Two parallel representations carry complementary information.** The MSA representation (per-sequence, per-residue) captures evolutionary variation, while the pair representation (residue-by-residue) encodes spatial relationships. The Evoformer's 48 blocks iteratively refine both.
+2. **Triangular updates enforce geometric consistency.** Because pairwise distances satisfy triangle inequalities, the Evoformer propagates information around residue triplets---ensuring that predictions for pairs $$(i,j)$$, $$(j,k)$$, and $$(i,k)$$ remain mutually consistent.
 
-3. **Triangular updates enforce geometric consistency.** Because pairwise distances satisfy triangle inequalities, the Evoformer propagates information around residue triplets---ensuring that predictions for pairs $$(i,j)$$, $$(j,k)$$, and $$(i,k)$$ remain mutually consistent.
+3. **Invariant Point Attention (IPA) reasons in 3D while respecting SE(3) symmetry.** By combining scalar features with point features expressed in local residue frames, IPA computes attention scores that are invariant to global rotations and translations---a hard physical constraint that the network satisfies by construction.
 
-4. **Invariant Point Attention (IPA) reasons in 3D while respecting SE(3) symmetry.** By combining scalar features with point features expressed in local residue frames, IPA computes attention scores that are invariant to global rotations and translations---a hard physical constraint that the network satisfies by construction.
+4. **FAPE loss measures structural accuracy in local frames.** Unlike RMSD, FAPE is SE(3)-invariant by design, emphasizes local accuracy, and provides dense gradient signal from $$L^2$$ pairwise terms.
 
-5. **Recycling and iterative refinement** are central to AlphaFold2's accuracy. The structure module refines coordinates over 8 iterations, and the entire Evoformer-to-structure pipeline is recycled 3 times, with each pass starting from the previous prediction.
+5. **Recycling and iterative refinement are central to accuracy.** The Structure Module refines coordinates over 8 iterations, and the entire Evoformer-to-structure pipeline is recycled 3 times, with each pass starting from the previous prediction.
 
 6. **Computational cost scales quadratically** with sequence length due to the pair representation. Practical deployment relies on MSA subsampling, mixed precision, gradient checkpointing, and optimized attention kernels.
 
 ---
 
 <div style="background: var(--global-code-bg-color); border-left: 4px solid var(--global-theme-color); padding: 1em 1.2em; margin: 2em 0; border-radius: 4px;">
-<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/12-nano-alphafold2/' | relative_url }}">nano-alphafold2 code walkthrough</a> implements this lecture's architecture from scratch in ~650 lines of PyTorch. Pairformer, SE(3) diffusion, FAPE loss — two files you can read in an afternoon.
+<strong>Build it yourself:</strong> The companion <a href="{{ '/lectures/16-nano-alphafold2/' | relative_url }}">nano-alphafold2 code walkthrough</a> implements this lecture's architecture from scratch in ~650 lines of PyTorch. Pairformer, SE(3) diffusion, FAPE loss --- two files you can read in an afternoon. For problem context and practical applications, see <a href="{{ '/lectures/09-alphafold-tasks/' | relative_url }}">Lecture 7: The Structure Prediction Problem</a>.
 </div>
 
 ## Further Reading
 
-- **Code walkthrough:** [nano-alphafold2]({{ '/lectures/12-nano-alphafold2/' | relative_url }}) — build AlphaFold2 from scratch in ~650 lines of PyTorch
-- Elana Simon & Jake Silberg, ["The Illustrated AlphaFold"](https://elanapearl.github.io/blog/2024/the-illustrated-alphafold/) — Jay-Alammar-style visual walkthrough of AlphaFold 3's full architecture with step-by-step diagrams.
-- Oxford Protein Informatics Group, ["AlphaFold 2: What's Behind the Structure Prediction Miracle"](https://www.blopig.com/blog/2021/07/alphafold-2-is-here-whats-behind-the-structure-prediction-miracle/) — technical breakdown of Evoformer, IPA, and the structure module.
-- Fabian Fuchs, ["AlphaFold 2 & Equivariance"](https://fabianfuchsml.github.io/alphafold2/) — how AlphaFold 2's structure module achieves SE(3) equivariance through iterative refinement.
+- **Code walkthrough:** [nano-alphafold2]({{ '/lectures/16-nano-alphafold2/' | relative_url }}) --- build AlphaFold2 from scratch in ~650 lines of PyTorch
+- Elana Simon & Jake Silberg, ["The Illustrated AlphaFold"](https://elanapearl.github.io/blog/2024/the-illustrated-alphafold/) --- Jay-Alammar-style visual walkthrough of AlphaFold 3's full architecture with step-by-step diagrams.
+- Oxford Protein Informatics Group, ["AlphaFold 2: What's Behind the Structure Prediction Miracle"](https://www.blopig.com/blog/2021/07/alphafold-2-is-here-whats-behind-the-structure-prediction-miracle/) --- technical breakdown of Evoformer, IPA, and the structure module.
+- Fabian Fuchs, ["AlphaFold 2 & Equivariance"](https://fabianfuchsml.github.io/alphafold2/) --- how AlphaFold 2's structure module achieves SE(3) equivariance through iterative refinement.
 
 ---

@@ -1,12 +1,11 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-proteinmpnn"
-date: 2026-04-06
 description: "Build ProteinMPNN from scratch in 448 lines of PyTorch — inverse folding with graph neural networks."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 12
+lecture_number: 18
 preliminary: false
 toc:
   sidebar: left
@@ -20,7 +19,7 @@ related_posts: false
 </div>
 
 <p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;">
-<em>Companion to <a href="{{ '/lectures/10-proteinmpnn/' | relative_url }}">Lecture: ProteinMPNN</a>. The lecture covers the theory; this page builds it from scratch.</em>
+<em>Companion to <a href="{{ '/lectures/14-proteinmpnn-implementation/' | relative_url }}">Lecture: ProteinMPNN — Architecture and Training</a>. The lecture covers the theory; this page builds it from scratch.</em>
 </p>
 
 You give it a protein backbone -- just the 3D coordinates of the skeleton atoms -- and it tells you which amino acids should go at each position. That is **inverse folding**: going from structure back to sequence. Nature solves this problem the forward direction (sequence folds into structure), but we want to run the tape backwards.

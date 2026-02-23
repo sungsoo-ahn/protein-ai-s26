@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Introduction to Machine Learning with Linear Regression"
-date: 2026-02-28
 description: "What machine learning is, how to represent data as tensors, and how a linear model learns from protein data—one gradient step at a time."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"

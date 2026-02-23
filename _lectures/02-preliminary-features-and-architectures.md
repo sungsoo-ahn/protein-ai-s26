@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Protein Features and Neural Networks"
-date: 2026-03-01
 description: "How to turn protein sequences into numerical features—one-hot encodings, PyTorch tensors—and the neural network architectures that learn representations from them."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"

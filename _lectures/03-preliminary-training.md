@@ -1,7 +1,6 @@
 ---
 layout: post
 title: "Training Neural Networks for Protein Science"
-date: 2026-03-02
 description: "Loss functions, optimizers, the training loop, data loading, validation, and overfitting—everything you need to train a protein model."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"

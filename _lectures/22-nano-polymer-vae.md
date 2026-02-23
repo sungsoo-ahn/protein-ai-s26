@@ -1,12 +1,11 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-polymer-vae"
-date: 2026-03-23
 description: "Build a variational autoencoder for 2D bead-spring polymers — data preprocessing, encoder-decoder MLP, latent-space visualization, and property optimization."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 13
+lecture_number: 4
 preliminary: false
 toc:
   sidebar: left
@@ -400,4 +399,4 @@ The optimized polymer is more compact than anything in the training set — the 
 - A **2D latent space** reveals physically meaningful structure ($$R_g$$ gradient) without any property labels during training.
 - **Latent-space optimization** finds novel conformations with extreme properties — the same principle scales to real proteins.
 
-The companion page [nano-polymer-diffusion]({{ '/lectures/19-nano-polymer-diffusion/' | relative_url }}) applies a denoising diffusion model to the same data, enabling a direct comparison between the two generative frameworks.
+The companion page [nano-polymer-diffusion]({{ '/lectures/23-nano-polymer-diffusion/' | relative_url }}) applies a denoising diffusion model to the same data, enabling a direct comparison between the two generative frameworks.

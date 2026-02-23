@@ -1,12 +1,11 @@
 ---
 layout: post
 title: "Code Walkthrough: nano-rfdiffusion"
-date: 2026-04-01
 description: "Build RFDiffusion from scratch in 607 lines of PyTorch — SE(3) diffusion with IPA-based denoising."
 course: "2026-spring-protein-ai"
 course_title: "Protein & Artificial Intelligence"
 course_semester: "Spring 2026"
-lecture_number: 11
+lecture_number: 15
 preliminary: false
 toc:
   sidebar: left
@@ -20,7 +19,7 @@ related_posts: false
 </div>
 
 <p style="color: #666; font-size: 0.9em; margin-bottom: 1.5em;">
-<em>Companion to <a href="{{ '/lectures/09-rfdiffusion/' | relative_url }}">Lecture: RFDiffusion</a>. The lecture covers the theory; this page builds it from scratch.</em>
+<em>Companion to <a href="{{ '/lectures/12-rfdiffusion-implementation/' | relative_url }}">Lecture: RFDiffusion — SE(3) Diffusion for Protein Backbones</a>. The lecture covers the theory; this page builds it from scratch.</em>
 </p>
 
 You give it nothing. No sequence, no template, no hint. Just a number -- say, 80 residues -- and it generates a brand-new protein backbone that has never existed in nature. That is what RFDiffusion does, and this is a from-scratch implementation in 607 lines of PyTorch.
